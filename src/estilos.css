@@ -120,6 +120,32 @@ img { display: block; max-width: 100%; }
 .dia.hoy::after { content: ''; position: absolute; bottom: 7px; width: 4px; height: 4px; border-radius: 50%; background: var(--lima); }
 .dia.on.hoy::after { background: var(--lima-tinta); }
 
+/* Interruptor día / semana */
+.segmentado { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 16px; background: var(--verde-2); }
+.segmentado button { min-height: 38px; border: 0; border-radius: 12px; background: transparent; color: var(--claro-2); font-size: 14px; font-weight: 700; }
+.segmentado button.on { background: var(--lima); color: var(--lima-tinta); }
+
+/* Tablero de la semana entera */
+.tablero { display: grid; gap: 8px; align-items: stretch; }
+.tablero-cab { padding: 0 4px; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gris); }
+.tablero-dia {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 0; border: 0; border-radius: 16px;
+  background: var(--verde); color: var(--claro);
+}
+.tablero-dia .letra { font-size: 11px; font-weight: 700; color: var(--claro-2); }
+.tablero-dia .num { font-family: var(--display); font-size: 19px; font-weight: 800; }
+.tablero-dia.hoy { background: var(--lima); color: var(--lima-tinta); }
+.tablero-dia.hoy .letra { color: var(--lima-tinta); }
+.celda {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  padding: 6px 6px 10px; border-radius: 18px;
+  background: var(--superficie); color: var(--tinta); text-decoration: none;
+}
+.celda-titulo { padding: 0 4px; font-size: 13px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.celda-meta { padding: 0 4px; font-size: 11px; font-weight: 600; color: var(--gris); }
+.celda.vacia { align-items: center; justify-content: center; min-height: 100px; border: 1.5px dashed var(--discontinua); background: transparent; color: var(--gris); font-size: 13px; font-weight: 700; }
+
 /* ---------- Cuerpo ---------- */
 .cuerpo { padding: 20px 20px 0; display: flex; flex-direction: column; gap: 14px; }
 .cuerpo.cerca { padding-top: 16px; }
@@ -172,6 +198,7 @@ img { display: block; max-width: 100%; }
 .portada.fila { width: 72px; height: 72px; border-radius: 16px; }
 .portada.mini { width: 56px; height: 56px; border-radius: 14px; }
 .portada.rejilla { height: 112px; border-radius: 20px; }
+.portada.casilla { height: 76px; border-radius: 13px; }
 .portada.hero img { position: absolute; inset: 0; }
 
 /* Chips de balance */

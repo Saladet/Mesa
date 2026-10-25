@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Icono from './Icono.jsx';
 
 // El plato dibujado (cuando todavía no hay foto). Dos versiones: grande (con sombra) y pequeña.
@@ -38,14 +39,30 @@ const FORMAS = {
   fila: { tam: 60, grande: false, icono: 22 },
   mini: { tam: 46, grande: false, icono: 18 },
   rejilla: { tam: 88, grande: false, icono: 22 },
+  casilla: { tam: 56, grande: false, icono: 18 },
 };
+
+// Fotos que no cargan (enlace roto o web que no deja enseñarlas): se recuerdan para no reintentar
+const rotas = new Set();
 
 export default function Portada({ receta, forma = 'tarjeta' }) {
   const f = FORMAS[forma];
-  if (receta?.foto_url) {
+  const [, refrescar] = useState(0);
+  const foto = receta?.foto_url && !rotas.has(receta.foto_url) ? receta.foto_url : null;
+  if (foto) {
     return (
-      <span className={`portada ${forma}`} style={{ position: forma === 'hero' ? 'relative' : undefined }}>
-        <img src={receta.foto_url} alt="" loading="lazy" decoding="async" />
+      <span className={`portada ${forma}`} style={{ position: 'relative', background: receta.paleta?.bg }}>
+        <img
+          src={foto}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => {
+            rotas.add(foto);
+            refrescar((n) => n + 1);
+          }}
+        />
       </span>
     );
   }
@@ -59,7 +76,7 @@ export default function Portada({ receta, forma = 'tarjeta' }) {
   return (
     <span className={`portada ${forma} sin`} aria-hidden="true">
       <Icono n="camara" t={f.icono} />
-      {f.texto && forma !== 'fila' && forma !== 'mini' ? <span>{f.texto}</span> : null}
+      {f.texto ? <span>{f.texto}</span> : null}
     </span>
   );
 }

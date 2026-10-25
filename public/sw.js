@@ -56,8 +56,8 @@ self.addEventListener('fetch', (evento) => {
     else evento.respondWith(primeroRed(peticion));
     return;
   }
-  // Fotos de los platos (cada foto tiene su propia dirección, no cambian)
-  if (url.hostname.endsWith('.supabase.co') && url.pathname.startsWith('/storage/v1/object/public/')) {
+  // Fotos de los platos (las vuestras y las de las webs de recetas): cada foto tiene su dirección y no cambia
+  if (peticion.destination === 'image' || (url.hostname.endsWith('.supabase.co') && url.pathname.startsWith('/storage/v1/object/public/'))) {
     evento.respondWith(primeroCache(peticion));
   }
 });

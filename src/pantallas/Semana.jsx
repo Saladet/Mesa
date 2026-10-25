@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useDatos } from '../datos.jsx';
 import Icono from '../ui/Icono.jsx';
 import Portada from '../ui/Portada.jsx';
@@ -12,6 +12,68 @@ import { siguienteInicio } from '../logic/generar.js';
 
 // Se recuerda qué semana y qué día estabais mirando al volver de un plato
 const memoria = { menuId: null, dia: null };
+
+function leerVista() {
+  try {
+    return localStorage.getItem('mesa-vista') === 'semana' ? 'semana' : 'dia';
+  } catch {
+    return 'dia';
+  }
+}
+
+// Toda la semana de un vistazo: una fila por día y una columna por comida
+function Tablero({ d, dias, comidasMenu, hoy, alElegirDia }) {
+  const tipos = [...new Set(comidasMenu.map((c) => c.tipo))].sort((a, b) => TIPOS_ORDEN[a] - TIPOS_ORDEN[b]);
+  if (!tipos.length) return <div className="vacio-suave">Esta semana no tiene platos.</div>;
+  return (
+    <div className="tablero" style={{ gridTemplateColumns: `46px repeat(${tipos.length}, minmax(0, 1fr))` }}>
+      <span aria-hidden="true" />
+      {tipos.map((t) => (
+        <span key={t} className="tablero-cab">
+          {NOMBRE_TIPO[t]}
+        </span>
+      ))}
+      {dias.map((f) => {
+        const fecha = parseFecha(f);
+        return (
+          <Fragment key={f}>
+            <button
+              type="button"
+              className={`tablero-dia${f === hoy ? ' hoy' : ''}`}
+              onClick={() => alElegirDia(f)}
+              aria-label={`Ver el ${etiquetaDia(f).toLowerCase()}${f === hoy ? ', hoy' : ''}`}
+            >
+              <span className="letra">{DIAS_CORTOS[fecha.getDay()]}</span>
+              <span className="num">{fecha.getDate()}</span>
+            </button>
+            {tipos.map((t) => {
+              const c = comidasMenu.find((x) => x.fecha === f && x.tipo === t);
+              if (!c) return <span key={t} aria-hidden="true" />;
+              const r = d.recetasMap.get(c.receta_id);
+              if (!r) {
+                return (
+                  <a key={t} className="celda vacia" href={`#/cambiar/${c.id}`} aria-label={`${NOMBRE_TIPO[t]} del ${etiquetaDia(f).toLowerCase()}: libre. Elegir plato`}>
+                    Libre
+                  </a>
+                );
+              }
+              return (
+                <a key={t} className="celda" href={`#/plato/${c.id}`} aria-label={`${NOMBRE_TIPO[t]} del ${etiquetaDia(f).toLowerCase()}: ${r.titulo}`}>
+                  <Portada receta={r} forma="casilla" />
+                  <span className="celda-titulo">{r.titulo}</span>
+                  <span className="celda-meta">
+                    {tiempo(r.tiempo_min)}
+                    {r.capricho ? ' · capricho' : ''}
+                  </span>
+                </a>
+              );
+            })}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
 
 function tituloSemana(menu, dias, hoy, orden) {
   if (!menu) return 'Mesa';
@@ -168,6 +230,16 @@ export default function Semana({ diaForzado, menuForzado }) {
   const [menuId, setMenuId] = useState(menuForzado || memoria.menuId || porDefecto?.id || null);
   const [dia, setDia] = useState(diaForzado || memoria.dia);
   const [pendiente, setPendiente] = useState(null);
+  const [vista, setVista] = useState(leerVista);
+  function cambiarVista(v) {
+    setVista(v);
+    try {
+      localStorage.setItem('mesa-vista', v);
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
+  const verSemana = vista === 'semana' && !diaForzado;
   const menu = orden.find((m) => m.id === (menuForzado || menuId)) || porDefecto;
   const dias = diasDelMenu(menu, d.comidas);
   const diaVisto = dias.includes(diaForzado || dia) ? diaForzado || dia : dias.includes(hoy) ? hoy : dias[0];
@@ -246,6 +318,16 @@ export default function Semana({ diaForzado, menuForzado }) {
           <Avatares personas={otros} tam={34} borde="#1D3B2F" />
         </header>
         {menu ? (
+          <div className="segmentado" role="group" aria-label="Cómo ver la semana">
+            <button type="button" className={verSemana ? '' : 'on'} aria-pressed={!verSemana} onClick={() => cambiarVista('dia')}>
+              Día a día
+            </button>
+            <button type="button" className={verSemana ? 'on' : ''} aria-pressed={verSemana} onClick={() => cambiarVista('semana')}>
+              Semana entera
+            </button>
+          </div>
+        ) : null}
+        {menu && !verSemana ? (
           <nav className="dias" aria-label="Días de la semana" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0, 1fr))` }}>
             {dias.map((f) => {
               const on = f === diaVisto;
@@ -268,7 +350,29 @@ export default function Semana({ diaForzado, menuForzado }) {
       </section>
 
       <main className="cuerpo">
-        {menu ? (
+        {menu && verSemana ? (
+          <>
+            <Tablero
+              d={d}
+              dias={dias}
+              comidasMenu={comidasMenu}
+              hoy={hoy}
+              alElegirDia={(f) => {
+                setDia(f);
+                cambiarVista('dia');
+              }}
+            />
+            <div className="chips" aria-label="Cómo va la semana">
+              {chips.map((c) => (
+                <span key={c.texto} className={`chip-b ${c.estado}`}>
+                  {c.estado === 'ok' ? <Icono n="check" t={13} /> : null}
+                  <span>{c.texto}</span>
+                </span>
+              ))}
+            </div>
+            {esFutura && nadaMarcado ? <Rehacer d={d} menu={menu} /> : null}
+          </>
+        ) : menu ? (
           <>
             <h2 className="titulo-dia">
               {etiquetaDia(diaVisto)}

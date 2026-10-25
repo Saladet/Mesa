@@ -68,7 +68,10 @@ export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, 
     legumbre: Math.max(r.legumbre_min, Math.min(r.legumbre_min + 1, totalHuecos)),
     carne: r.carne_max,
     huevo: Math.min(r.huevos_max, 3),
+    otro: Math.max(1, Math.round(totalHuecos / 7)),
   };
+  // Lácteos y platos de verdura cuentan juntos ("otro")
+  const grupo = (x) => (x.proteina === 'lacteo' ? 'otro' : x.proteina);
 
   const validas = [];
   let mejor = null;
@@ -87,7 +90,7 @@ export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, 
   return mejor ? mejor.slots : [];
 
   function intentar() {
-    const cuenta = { legumbre: 0, carne: 0, huevo: 0, capricho: 0, pescado: 0 };
+    const cuenta = { legumbre: 0, carne: 0, huevo: 0, capricho: 0, pescado: 0, otro: 0 };
     const usadas = new Set();
     const slots = [];
     let puntos = 0;
@@ -102,7 +105,7 @@ export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, 
       if (cands.length) {
         capricho = { d, t, receta: cands[Math.floor(azar() * cands.length)] };
         cuenta.capricho += 1;
-        if (cuenta[capricho.receta.proteina] != null) cuenta[capricho.receta.proteina] += 1;
+        if (cuenta[grupo(capricho.receta)] != null) cuenta[grupo(capricho.receta)] += 1;
         usadas.add(capricho.receta.id);
       }
     }
@@ -131,7 +134,8 @@ export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, 
             if (x.id === desayunoAyer) p -= 3;
           } else {
             if (x.proteina === 'legumbre' && faltaLegumbre > 0 && faltaLegumbre >= quedan - 1) p += 8;
-            if (objetivo[x.proteina] != null) p += cuenta[x.proteina] < objetivo[x.proteina] ? 1.2 : -2.5;
+            const g = grupo(x);
+            if (objetivo[g] != null) p += cuenta[g] < objetivo[g] ? 1.2 : -2.5;
             if (recientes.has(x.id)) p -= 2.5;
             p -= 2 * (blandas.get(x.id) || 0);
             if (delDia.includes(x.proteina) && ['huevo', 'carne'].includes(x.proteina)) p -= 3;
@@ -159,7 +163,7 @@ export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, 
           desayunoAyer = elegida.id;
         } else {
           usadas.add(elegida.id);
-          if (cuenta[elegida.proteina] != null) cuenta[elegida.proteina] += 1;
+          if (cuenta[grupo(elegida)] != null) cuenta[grupo(elegida)] += 1;
           delDia.push(elegida.proteina);
         }
       }

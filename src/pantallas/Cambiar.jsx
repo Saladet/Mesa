@@ -156,7 +156,7 @@ export default function Cambiar({ comidaId }) {
                   <span className="opcion-textos">
                     <span className="opcion-titulo">{receta.titulo}</span>
                     <span className="meta">
-                      {[tiempo(receta.tiempo_min), origen(receta), d.medias.has(receta.id) ? `★ ${formatoMedia(d.medias.get(receta.id))}` : null, razon]
+                      {[tiempo(receta.tiempo_min), origen(receta, d.notas.has(receta.id)), d.medias.has(receta.id) ? `★ ${formatoMedia(d.medias.get(receta.id))}` : null, razon]
                         .filter(Boolean)
                         .join(' · ')}
                     </span>

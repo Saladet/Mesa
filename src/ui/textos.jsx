@@ -12,10 +12,11 @@ export function veces(n) {
   return n === 1 ? '1 vez' : `${n} veces`;
 }
 
-export function origen(receta) {
+// `probada`: si ya la habéis valorado (cuenta como probada aunque no se usara el modo cocina)
+export function origen(receta, probada = false) {
   if (receta.origen === 'importada') return 'Importada';
   if (receta.origen === 'vuestra') return 'Vuestra';
-  return receta.veces_cocinada > 0 ? 'Probada' : 'Nueva';
+  return receta.veces_cocinada > 0 || probada ? 'Probada' : 'Nueva';
 }
 
 export function metaReceta(receta) {

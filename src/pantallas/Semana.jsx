@@ -129,7 +129,7 @@ function TarjetaGrande({ comida, receta }) {
           <span className="momento">{NOMBRE_TIPO[comida.tipo]}</span>
           <span className="tarjeta-titulo">{receta.titulo}</span>
           <span className="meta">
-            {[tiempo(receta.tiempo_min), origen(receta), receta.capricho ? 'capricho' : null, textoMedia(d, receta)].filter(Boolean).join(' · ')}
+            {[tiempo(receta.tiempo_min), origen(receta, d.notas.has(receta.id)), receta.capricho ? 'capricho' : null, textoMedia(d, receta)].filter(Boolean).join(' · ')}
           </span>
           <Conflictos receta={receta} />
         </span>
@@ -150,7 +150,7 @@ function FilaComida({ comida, receta }) {
         <Portada receta={receta} forma="fila" />
         <span className="fila-textos">
           <span className="momento">
-            {NOMBRE_TIPO[comida.tipo]} · {origen(receta)}
+            {NOMBRE_TIPO[comida.tipo]} · {origen(receta, d.notas.has(receta.id))}
             {receta.capricho ? ' · capricho' : ''}
           </span>
           <span className="fila-titulo">{receta.titulo}</span>

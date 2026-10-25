@@ -3,7 +3,7 @@ import { useDatos } from '../datos.jsx';
 import Icono from '../ui/Icono.jsx';
 import Portada from '../ui/Portada.jsx';
 import { tiempo, origen, minuscula } from '../ui/textos.jsx';
-import { etiquetaDia } from '../logic/fechas.js';
+import { etiquetaDia, diaSemana } from '../logic/fechas.js';
 import { NOMBRE_TIPO } from '../logic/semanas.js';
 import { alternativas } from '../logic/generar.js';
 import { formatoMedia } from '../logic/valoraciones.js';
@@ -40,6 +40,12 @@ export default function Cambiar({ comidaId }) {
     };
   }, []);
 
+  // El hueco del plato especial (o uno donde ya hay un especial) propone especiales
+  const huecoEspecial =
+    !!comida &&
+    (!!actual?.especial ||
+      (d.hogar?.dia_especial != null && diaSemana(comida.fecha) === d.hogar.dia_especial && comida.tipo === (d.hogar.tipo_especial || 'comida')));
+
   const opciones = useMemo(() => {
     if (!comida || !menu) return [];
     const comidasMenu = d.comidas.filter((c) => c.menu_id === menu.id);
@@ -64,9 +70,10 @@ export default function Cambiar({ comidaId }) {
       motivos,
       enLista,
       medias: d.medias,
+      huecoEspecial,
       semilla,
     });
-  }, [comida, menu, actual, d.comidas, d.recetas, d.recetasMap, d.ingMap, d.restricciones, d.hogar, d.medias, motivos, semilla]);
+  }, [comida, menu, actual, d.comidas, d.recetas, d.recetasMap, d.ingMap, d.restricciones, d.hogar, d.medias, huecoEspecial, motivos, semilla]);
 
   const paginas = Math.max(1, Math.ceil(opciones.length / POR_PAGINA));
   const visibles = opciones.slice(pagina * POR_PAGINA, pagina * POR_PAGINA + POR_PAGINA);
@@ -156,7 +163,13 @@ export default function Cambiar({ comidaId }) {
                   <span className="opcion-textos">
                     <span className="opcion-titulo">{receta.titulo}</span>
                     <span className="meta">
-                      {[tiempo(receta.tiempo_min), origen(receta, d.notas.has(receta.id)), d.medias.has(receta.id) ? `★ ${formatoMedia(d.medias.get(receta.id))}` : null, razon]
+                      {[
+                        receta.especial ? 'Especial' : null,
+                        tiempo(receta.tiempo_min),
+                        origen(receta, d.notas.has(receta.id)),
+                        d.medias.has(receta.id) ? `★ ${formatoMedia(d.medias.get(receta.id))}` : null,
+                        razon,
+                      ]
                         .filter(Boolean)
                         .join(' · ')}
                     </span>

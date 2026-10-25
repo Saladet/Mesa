@@ -21,6 +21,7 @@ const TRAZOS = {
   chispa: <path d="M12 3.5 13.8 10l6.7 2-6.7 2L12 20.5 10.2 14l-6.7-2 6.7-2z" />,
   pausa: <path d="M9 6v12M15 6v12" />,
   salir: <><path d="M14 4h5v16h-5" /><path d="M10 8l-4 4 4 4M6 12h10" /></>,
+  mover: <><path d="M12 3.5v17M3.5 12h17" /><path d="m9 6.5 3-3 3 3M9 17.5l3 3 3-3M6.5 9l-3 3 3 3M17.5 9l3 3-3 3" /></>,
 };
 
 export default function Icono({ n, t = 20, className = '' }) {

@@ -24,6 +24,8 @@
   --rojo: #8A2E1B;
   --estrella: #F2B33D;
   --estrella-borde: #B7791F;
+  --especial-fondo: #FCEBD2;
+  --especial: #8A4B0F;
   --display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
   --ui: 'Manrope Variable', Manrope, ui-sans-serif, system-ui, sans-serif;
   --arriba: env(safe-area-inset-top, 0px);
@@ -368,6 +370,34 @@ img { display: block; max-width: 100%; }
 .fin-valorar .elegir-estrellas { margin-left: 0; }
 .cocina .estrella { stroke: var(--claro-2); }
 .cocina .estrella.llena { fill: var(--lima); stroke: var(--lima); }
+
+/* ---------- Plato especial y mover platos ---------- */
+.etiqueta-especial { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--especial-fondo); color: var(--especial); font-size: 11px; font-weight: 800; vertical-align: 1px; }
+.pildora.especial { background: var(--especial-fondo); color: var(--especial); font-weight: 700; }
+.antes { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 20px; background: var(--especial-fondo); color: var(--especial); }
+.antes .subtitulo { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--especial); }
+.antes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.4; color: var(--tinta); }
+.mover-dia { margin: -4px 0; }
+.aviso-especial { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 22px; background: var(--especial-fondo); color: var(--tinta); text-decoration: none; }
+.aviso-especial-cab { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--especial); }
+.aviso-especial-titulo { font-family: var(--display); font-size: 19px; line-height: 1.2; font-weight: 800; }
+.aviso-especial ul { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.4; }
+.celda { position: relative; }
+.celda-especial { position: absolute; top: 10px; left: 10px; display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 999px; background: var(--especial-fondo); color: var(--especial); font-size: 10px; font-weight: 800; }
+.celda.es-especial { box-shadow: inset 0 0 0 1.5px var(--especial-fondo); }
+button.celda { border: 0; text-align: left; font: inherit; cursor: pointer; }
+button.celda.vacia { border: 1.5px dashed var(--discontinua); }
+button.celda:disabled { cursor: default; opacity: 0.45; }
+.tablero.moviendo .tablero-dia:disabled { opacity: 1; cursor: default; }
+.celda.elegida { background: var(--lima); box-shadow: 0 0 0 2px var(--verde); }
+.celda.elegida .celda-meta { color: var(--lima-tinta); }
+.celda.destino { box-shadow: inset 0 0 0 1.5px var(--acento); }
+.celda.vacia.destino { border-color: var(--acento); color: var(--acento); }
+.mover-barra { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mover-barra.activa { position: sticky; top: calc(8px + var(--arriba)); z-index: 5; padding: 10px 12px 10px 14px; border-radius: 18px; background: var(--verde); color: var(--claro); font-size: 14px; font-weight: 600; line-height: 1.35; box-shadow: 0 8px 24px rgba(16, 38, 28, 0.18); }
+.mover-barra.activa .boton { flex: none; }
+.fila-selectores { display: flex; gap: 8px; }
+.fila-selectores .selector:first-child { flex: 1; }
 
 /* ---------- Hoja inferior (Cambiar) ---------- */
 .velo { position: fixed; inset: 0; z-index: 30; background: rgba(16, 38, 28, 0.55); animation: aparecer 0.18s ease-out; }

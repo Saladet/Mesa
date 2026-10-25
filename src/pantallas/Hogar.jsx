@@ -357,6 +357,40 @@ export default function Hogar() {
           <span className="nota-gris">Cada semana empieza ese día: lo que caduca antes va primero y lo que dura menos se congela al llegar.</span>
         </div>
 
+        <div className="bloque">
+          <label htmlFor="dia-especial" className="etiqueta-seccion" style={{ margin: 0 }}>
+            Plato especial
+          </label>
+          <div className="fila-selectores">
+            <select
+              id="dia-especial"
+              className="selector"
+              value={hogar?.dia_especial ?? 'no'}
+              onChange={(e) => d.acciones.actualizarHogar({ dia_especial: e.target.value === 'no' ? null : Number(e.target.value) })}
+            >
+              {DIAS_COMPRA.map(([v, t]) => (
+                <option key={v} value={v}>
+                  {t}
+                </option>
+              ))}
+              <option value="no">Ninguno</option>
+            </select>
+            <select
+              className="selector"
+              aria-label="Comida o cena del plato especial"
+              value={hogar?.tipo_especial || 'comida'}
+              disabled={hogar?.dia_especial == null}
+              onChange={(e) => d.acciones.actualizarHogar({ tipo_especial: e.target.value })}
+            >
+              <option value="comida">Comida</option>
+              <option value="cena">Cena</option>
+            </select>
+          </div>
+          <span className="nota-gris">
+            Una receta más elaborada a la semana. Dos días antes te avisa de lo que hay que preparar. Se aplica a las semanas nuevas; en la semana entera puedes moverlo a otro día.
+          </span>
+        </div>
+
         <section>
           <h2 className="etiqueta-seccion" style={{ margin: '0 0 2px' }}>
             Reglas de la semana

@@ -18,6 +18,7 @@ const FILTROS = [
   ['carne', 'Carne', (r) => r.proteina === 'carne'],
   ['huevo', 'Huevo', (r) => r.proteina === 'huevo'],
   ['vegetal', 'Vegetal', (r) => r.proteina === 'lacteo' || r.proteina === 'otro'],
+  ['especiales', 'Especiales', (r) => r.especial],
   ['caprichos', 'Caprichos', (r) => r.capricho],
   ['probadas', 'Probadas', (r, nota) => r.veces_cocinada > 0 || !!nota],
   ['desayunos', 'Desayunos', (r) => (r.momentos || []).includes('desayuno')],
@@ -25,6 +26,7 @@ const FILTROS = [
 
 function metaFicha(r, nota) {
   const partes = [];
+  if (r.especial) partes.push('Especial');
   if (nota?.media != null) partes.push(`★ ${formatoMedia(nota.media)}`);
   if (r.veces_cocinada > 0) partes.push(`Hecha ${veces(r.veces_cocinada)}`);
   else if (nota) partes.push('Probada');

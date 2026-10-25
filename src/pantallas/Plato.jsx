@@ -13,6 +13,7 @@ import { conflictosReceta, esBloqueante, nombreRestriccion, PROTEINAS } from '..
 import { formatoCantidad, escalar } from '../logic/cantidades.js';
 import { mensajeError } from '../supabase.js';
 import { volver, ir } from '../ruta.js';
+import { pedirMover } from './Semana.jsx';
 
 export function NoEncontrado({ texto = 'Este plato ya no está en el menú.' }) {
   return (
@@ -133,6 +134,12 @@ export default function PantallaPlato({ comidaId, recetaId }) {
           <span className="pildora">Para {d.comensales}</span>
           {receta.proteina && PROTEINAS[receta.proteina] ? <span className="pildora">{PROTEINAS[receta.proteina]}</span> : null}
           {receta.capricho ? <span className="pildora lima">Capricho</span> : null}
+          {receta.especial ? (
+            <span className="pildora especial">
+              <Icono n="chispa" t={14} />
+              Plato especial
+            </span>
+          ) : null}
         </div>
 
         <div className="franja">
@@ -165,6 +172,34 @@ export default function PantallaPlato({ comidaId, recetaId }) {
               : `mejor poco para ${d.personasMap.get(r.persona_id)?.nombre}`}
           </span>
         ))}
+
+        {receta.antes?.length ? (
+          <section className="antes" aria-labelledby="titulo-antes">
+            <h2 id="titulo-antes" className="subtitulo">
+              <Icono n="chispa" t={18} />
+              Antes de empezar
+            </h2>
+            <ul>
+              {receta.antes.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {comida && comida.fecha >= hoy && d.enLinea ? (
+          <button
+            type="button"
+            className="boton-texto mover-dia"
+            onClick={() => {
+              pedirMover(comida.id);
+              ir('semana');
+            }}
+          >
+            <Icono n="mover" t={18} />
+            Mover a otro día
+          </button>
+        ) : null}
 
         {valorarArriba ? valorar : null}
         <NotasAnteriores receta={receta} excluir={fechaValorar} />

@@ -55,6 +55,8 @@ export function generarSemana({
   momentos,
   recientes = new Set(),
   medias = new Map(),
+  especial = null, // { dia: 0-6 (0 = domingo), tipo: 'comida' | 'cena' } o null
+  ultimoUso = new Map(), // receta_id -> última fecha en la que salió (para rotar los especiales)
   intentos = 60,
   semilla = Date.now(),
 }) {
@@ -74,8 +76,16 @@ export function generarSemana({
   const fres = new Map(permitidas.map((x) => [x.id, frescura(x, ingMap)]));
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(inicio, i));
   const finde = dias.map((f, i) => ({ f, i })).filter(({ f }) => [5, 6, 0].includes(diaSemana(f))).map(({ i }) => i);
-  const caprichos = permitidas.filter((x) => x.capricho);
+  const caprichos = permitidas.filter((x) => x.capricho && !x.especial);
+  const especiales = permitidas.filter((x) => x.especial);
   const principales = tipos.filter((t) => t !== 'desayuno');
+  // Hueco del plato especial: un día fijo de la semana
+  let huecoEspecial = null;
+  if (especial && especial.dia != null && especiales.length && principales.length) {
+    const d = dias.findIndex((f) => diaSemana(f) === especial.dia);
+    const t = principales.includes(especial.tipo) ? especial.tipo : principales[0];
+    if (d >= 0) huecoEspecial = { d, t };
+  }
   const totalHuecos = 7 * principales.length;
   // Lo que se busca en una semana normal (sin pasarse de los máximos)
   const objetivo = {
@@ -111,9 +121,39 @@ export function generarSemana({
     let vacios = 0;
     let hechos = 0;
 
+    // Primero el especial, rotando: lo que salió hace poco espera su turno y lo que gustó vuelve antes
+    let especialElegido = null;
+    if (huecoEspecial) {
+      const delMomento = especiales.filter((x) => (x.momentos || []).includes(huecoEspecial.t));
+      let mejorP = -Infinity;
+      for (const x of delMomento.length ? delMomento : especiales) {
+        if (x.proteina === 'carne' && r.carne_max < 1) continue;
+        if (x.proteina === 'huevo' && r.huevos_max < 1) continue;
+        let p = azar() * 3;
+        const media = medias.get(x.id);
+        if (media != null) p += (media - 3) * 0.5;
+        const ultima = ultimoUso.get(x.id);
+        if (ultima) {
+          const semanas = diasEntre(ultima, dias[0]) / 7;
+          if (semanas < 8) p -= (8 - semanas) * 1.5;
+        }
+        p -= 2 * (blandas.get(x.id) || 0);
+        if (p > mejorP) {
+          mejorP = p;
+          especialElegido = x;
+        }
+      }
+      if (especialElegido) {
+        usadas.add(especialElegido.id);
+        if (cuenta[grupo(especialElegido)] != null) cuenta[grupo(especialElegido)] += 1;
+        if (especialElegido.capricho) cuenta.capricho += 1;
+      }
+    }
+
     let capricho = null;
-    if (r.caprichos_max > 0 && caprichos.length && finde.length && azar() < 0.9) {
-      const d = finde[Math.floor(azar() * finde.length)];
+    const findeLibre = finde.filter((i) => !especialElegido || i !== huecoEspecial.d);
+    if (r.caprichos_max > cuenta.capricho && caprichos.length && findeLibre.length && azar() < 0.9) {
+      const d = findeLibre[Math.floor(azar() * findeLibre.length)];
       const t = principales.includes('cena') && azar() < 0.75 ? 'cena' : principales.includes('comida') ? 'comida' : principales[0];
       const cands = caprichos.filter((x) => (x.momentos || []).includes(t) && !(x.proteina === 'carne' && r.carne_max < 1));
       if (cands.length) {
@@ -129,6 +169,11 @@ export function generarSemana({
       const delDia = [];
       for (const t of tipos) {
         if (t !== 'desayuno') hechos += 1;
+        if (especialElegido && huecoEspecial.d === d && huecoEspecial.t === t) {
+          slots.push({ fecha: dias[d], tipo: t, receta_id: especialElegido.id });
+          delDia.push(especialElegido.proteina);
+          continue;
+        }
         if (capricho && capricho.d === d && capricho.t === t) {
           slots.push({ fecha: dias[d], tipo: t, receta_id: capricho.receta.id });
           delDia.push(capricho.receta.proteina);
@@ -139,7 +184,7 @@ export function generarSemana({
         let elegida = null;
         let mejorP = -Infinity;
         for (const x of permitidas) {
-          if (x.capricho || !(x.momentos || []).includes(t)) continue;
+          if (x.capricho || x.especial || !(x.momentos || []).includes(t)) continue;
           if (t !== 'desayuno' && usadas.has(x.id)) continue;
           if (x.proteina === 'carne' && cuenta.carne >= r.carne_max) continue;
           if (x.proteina === 'huevo' && cuenta.huevo >= r.huevos_max) continue;
@@ -208,6 +253,7 @@ export function alternativas({
   motivos,
   enLista,
   medias = new Map(),
+  huecoEspecial = false, // si es el hueco del plato especial, se proponen especiales
   semilla = 1,
 }) {
   const r = reglasCompletas(reglas);
@@ -223,6 +269,7 @@ export function alternativas({
   const out = [];
   for (const x of recetas) {
     if (actual && x.id === actual.id) continue;
+    if (x.especial && !huecoEspecial) continue;
     if (!(x.momentos || []).includes(tipo)) continue;
     if (tipo !== 'desayuno' && enSemana.has(x.id)) continue;
     const conf = conflictosReceta(x, restricciones, ingMap);
@@ -258,6 +305,7 @@ export function alternativas({
     const noGusto = media != null && media < MEDIA_MINIMA;
     if (media != null) p += (media - 3) * 0.6;
     if (noGusto) p -= 4;
+    if (huecoEspecial && x.especial) p += 4;
     const f = frescura(x, ingMap);
     if (f < 99 && desfase > f) p -= 2;
     if (motivos.has('largo')) p += (30 - (x.tiempo_min ?? 30)) / 15;

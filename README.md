@@ -6,7 +6,8 @@ El menú de la semana, la lista de la compra compartida y las recetas de casa.
 
 ## Qué hace
 
-- **Semana**: comida y cena de cada día, con un plato dibujado hasta que le hagáis foto. Cada plato se puede cambiar por otro que encaje con las reglas de la semana.
+- **Semana**: comida y cena de cada día, con un plato dibujado hasta que le hagáis foto. Cada plato se puede cambiar por otro que encaje con las reglas de la semana, o moverse a otro día desde la semana entera.
+- **Plato especial**: una receta más elaborada a la semana (por defecto, el domingo a mediodía). Dos días antes avisa de lo que hay que preparar (remojos, adobos, qué pedir en la carnicería).
 - **Lista**: se monta sola con los ingredientes de la semana, agrupada por secciones del súper. Lo que marca uno lo ve el otro al momento. Avisa de lo que hay que congelar al llegar.
 - **Recetas**: el recetario, con modo cocina paso a paso y temporizadores.
 - **Valoraciones**: cada uno puntúa los platos (1-5 estrellas) y deja un comentario. Lo de la última vez sale en el plato y al empezar a cocinar; lo que gustó aparece más en las semanas y lo de «No lo repetimos» deja de salir solo.
@@ -25,4 +26,4 @@ npm install
 npm run dev
 ```
 
-`seed/` contiene el recetario inicial y el script que generó la carga inicial.
+`seed/` contiene el recetario (inicial, importado y especiales) y los scripts que generan el SQL de cada carga (`seed/sql.mjs`, `seed/sql-recetas.mjs`).

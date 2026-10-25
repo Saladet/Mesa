@@ -1,19 +1,24 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useDatos } from '../datos.jsx';
 import Icono from '../ui/Icono.jsx';
 import Portada from '../ui/Portada.jsx';
 import { Avatares } from '../ui/Avatar.jsx';
 import { tiempo, origen, minuscula, enumerar } from '../ui/textos.jsx';
-import { hoyISO, sumarDias, parseFecha, DIAS_CORTOS, etiquetaDia, fechaCorta, diasEntre } from '../logic/fechas.js';
+import { hoyISO, sumarDias, parseFecha, DIAS_CORTOS, etiquetaDia, fechaCorta, diasEntre, nombreDia } from '../logic/fechas.js';
 import { diasDelMenu, menuDeHoy, ordenarMenus, finDelMenu, TIPOS_ORDEN, NOMBRE_TIPO } from '../logic/semanas.js';
 import { contarSemana, chipsSemana, conflictosReceta, esBloqueante, nombreRestriccion } from '../logic/reglas.js';
 import { descongelarPara } from '../logic/lista.js';
 import { siguienteInicio } from '../logic/generar.js';
-import { formatoMedia } from '../logic/valoraciones.js';
+import { formatoMedia, yaComido } from '../logic/valoraciones.js';
 import { AvisoValorar } from '../ui/Notas.jsx';
 
 // Se recuerda qué semana y qué día estabais mirando al volver de un plato
-const memoria = { menuId: null, dia: null };
+const memoria = { menuId: null, dia: null, mover: null };
+
+// Desde un plato: abre la semana entera con ese plato ya elegido para moverlo
+export function pedirMover(comidaId) {
+  memoria.mover = comidaId;
+}
 
 function leerVista() {
   try {
@@ -23,12 +28,14 @@ function leerVista() {
   }
 }
 
-// Toda la semana de un vistazo: una fila por día y una columna por comida
-function Tablero({ d, dias, comidasMenu, hoy, alElegirDia }) {
+// Toda la semana de un vistazo: una fila por día y una columna por comida.
+// En modo «mover», se toca un plato y después el hueco al que se lleva (si hay otro, se intercambian).
+function Tablero({ d, dias, comidasMenu, hoy, alElegirDia, moviendo, elegida, alTocar, ocupado }) {
   const tipos = [...new Set(comidasMenu.map((c) => c.tipo))].sort((a, b) => TIPOS_ORDEN[a] - TIPOS_ORDEN[b]);
   if (!tipos.length) return <div className="vacio-suave">Esta semana no tiene platos.</div>;
+  const origen = elegida ? comidasMenu.find((c) => c.id === elegida) : null;
   return (
-    <div className="tablero" style={{ gridTemplateColumns: `46px repeat(${tipos.length}, minmax(0, 1fr))` }}>
+    <div className={`tablero${moviendo ? ' moviendo' : ''}`} style={{ gridTemplateColumns: `46px repeat(${tipos.length}, minmax(0, 1fr))` }}>
       <span aria-hidden="true" />
       {tipos.map((t) => (
         <span key={t} className="tablero-cab">
@@ -43,6 +50,7 @@ function Tablero({ d, dias, comidasMenu, hoy, alElegirDia }) {
               type="button"
               className={`tablero-dia${f === hoy ? ' hoy' : ''}`}
               onClick={() => alElegirDia(f)}
+              disabled={moviendo}
               aria-label={`Ver el ${etiquetaDia(f).toLowerCase()}${f === hoy ? ', hoy' : ''}`}
             >
               <span className="letra">{DIAS_CORTOS[fecha.getDay()]}</span>
@@ -52,21 +60,59 @@ function Tablero({ d, dias, comidasMenu, hoy, alElegirDia }) {
               const c = comidasMenu.find((x) => x.fecha === f && x.tipo === t);
               if (!c) return <span key={t} aria-hidden="true" />;
               const r = d.recetasMap.get(c.receta_id);
-              if (!r) {
-                return (
-                  <a key={t} className="celda vacia" href={`#/cambiar/${c.id}`} aria-label={`${NOMBRE_TIPO[t]} del ${etiquetaDia(f).toLowerCase()}: libre. Elegir plato`}>
-                    Libre
-                  </a>
-                );
-              }
-              return (
-                <a key={t} className="celda" href={`#/plato/${c.id}`} aria-label={`${NOMBRE_TIPO[t]} del ${etiquetaDia(f).toLowerCase()}: ${r.titulo}`}>
+              const donde = `${NOMBRE_TIPO[t]} del ${etiquetaDia(f).toLowerCase()}`;
+              const contenido = r ? (
+                <>
                   <Portada receta={r} forma="casilla" />
+                  {r.especial ? (
+                    <span className="celda-especial">
+                      <Icono n="chispa" t={11} />
+                      Especial
+                    </span>
+                  ) : null}
                   <span className="celda-titulo">{r.titulo}</span>
                   <span className="celda-meta">
                     {tiempo(r.tiempo_min)}
                     {r.capricho ? ' · capricho' : ''}
                   </span>
+                </>
+              ) : (
+                'Libre'
+              );
+              if (moviendo) {
+                // Solo se mueve de hoy en adelante (lo pasado ya se comió) y sin mezclar desayunos con el resto
+                const movible = f >= hoy && (!origen || (origen.tipo === 'desayuno') === (t === 'desayuno'));
+                const esElegida = elegida === c.id;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`celda${r ? '' : ' vacia'}${esElegida ? ' elegida' : ''}${origen && !esElegida && movible ? ' destino' : ''}`}
+                    disabled={ocupado || !movible || (!origen && !r)}
+                    aria-pressed={esElegida}
+                    aria-label={
+                      esElegida
+                        ? `${donde}: ${r ? r.titulo : 'libre'}. Elegido para mover; toca otro hueco`
+                        : origen
+                          ? `Llevar aquí: ${donde}${r ? `, ahora con ${r.titulo}` : ', libre'}`
+                          : `Mover ${r ? r.titulo : 'este hueco'} (${donde})`
+                    }
+                    onClick={() => alTocar(c)}
+                  >
+                    {contenido}
+                  </button>
+                );
+              }
+              if (!r) {
+                return (
+                  <a key={t} className="celda vacia" href={`#/cambiar/${c.id}`} aria-label={`${donde}: libre. Elegir plato`}>
+                    Libre
+                  </a>
+                );
+              }
+              return (
+                <a key={t} className={`celda${r.especial ? ' es-especial' : ''}`} href={`#/plato/${c.id}`} aria-label={`${donde}: ${r.titulo}${r.especial ? ' (plato especial)' : ''}`}>
+                  {contenido}
                 </a>
               );
             })}
@@ -74,6 +120,40 @@ function Tablero({ d, dias, comidasMenu, hoy, alElegirDia }) {
         );
       })}
     </div>
+  );
+}
+
+// Aviso con tiempo: el plato especial de hoy, mañana o pasado, con lo que hay que preparar antes
+function AvisoEspecial({ d, hoy }) {
+  const hora = new Date().getHours();
+  const proxima = d.comidas
+    .filter((c) => {
+      const r = c.receta_id ? d.recetasMap.get(c.receta_id) : null;
+      if (!r?.especial || c.fecha < hoy || diasEntre(hoy, c.fecha) > 2) return false;
+      return !(c.fecha === hoy && yaComido(c, hoy, hora));
+    })
+    .sort((a, b) => (a.fecha === b.fecha ? TIPOS_ORDEN[a.tipo] - TIPOS_ORDEN[b.tipo] : a.fecha < b.fecha ? -1 : 1))[0];
+  if (!proxima) return null;
+  const r = d.recetasMap.get(proxima.receta_id);
+  const n = diasEntre(hoy, proxima.fecha);
+  const tipo = NOMBRE_TIPO[proxima.tipo].toLowerCase();
+  const cuando = n === 0 ? `hoy, en la ${tipo}` : n === 1 ? `mañana, en la ${tipo}` : `el ${nombreDia(proxima.fecha)}, en la ${tipo}`;
+  return (
+    <a className="aviso-especial" href={`#/plato/${proxima.id}`}>
+      <span className="aviso-especial-cab">
+        <Icono n="chispa" t={15} />
+        Plato especial {cuando}
+      </span>
+      <span className="aviso-especial-titulo">{r.titulo}</span>
+      <span className="meta">{[tiempo(r.tiempo_min), 'mira la receta con tiempo'].filter(Boolean).join(' · ')}</span>
+      {r.antes?.length ? (
+        <ul>
+          {r.antes.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+      ) : null}
+    </a>
   );
 }
 
@@ -112,6 +192,15 @@ function HuecoVacio({ comida }) {
   );
 }
 
+function Especial() {
+  return (
+    <span className="etiqueta-especial">
+      <Icono n="chispa" t={12} />
+      Especial
+    </span>
+  );
+}
+
 // "★ 4,5" si ya lo habéis puntuado
 function textoMedia(d, receta) {
   const m = d.medias.get(receta.id);
@@ -126,7 +215,10 @@ function TarjetaGrande({ comida, receta }) {
       <a className="tarjeta-enlace" href={`#/plato/${comida.id}`}>
         <Portada receta={receta} forma="tarjeta" />
         <span className="tarjeta-textos">
-          <span className="momento">{NOMBRE_TIPO[comida.tipo]}</span>
+          <span className="momento">
+            {NOMBRE_TIPO[comida.tipo]}
+            {receta.especial ? <Especial /> : null}
+          </span>
           <span className="tarjeta-titulo">{receta.titulo}</span>
           <span className="meta">
             {[tiempo(receta.tiempo_min), origen(receta, d.notas.has(receta.id)), receta.capricho ? 'capricho' : null, textoMedia(d, receta)].filter(Boolean).join(' · ')}
@@ -152,6 +244,7 @@ function FilaComida({ comida, receta }) {
           <span className="momento">
             {NOMBRE_TIPO[comida.tipo]} · {origen(receta, d.notas.has(receta.id))}
             {receta.capricho ? ' · capricho' : ''}
+            {receta.especial ? <Especial /> : null}
           </span>
           <span className="fila-titulo">{receta.titulo}</span>
           <span className="meta">{[tiempo(receta.tiempo_min), textoMedia(d, receta)].filter(Boolean).join(' · ')}</span>
@@ -237,10 +330,22 @@ export default function Semana({ diaForzado, menuForzado }) {
   const hoy = hoyISO();
   const orden = ordenarMenus(d.menus);
   const porDefecto = menuDeHoy(d.menus, d.comidas, hoy);
-  const [menuId, setMenuId] = useState(menuForzado || memoria.menuId || porDefecto?.id || null);
+  const aMover = !diaForzado && memoria.mover ? d.comidas.find((c) => c.id === memoria.mover) : null;
+  const [menuId, setMenuId] = useState(aMover?.menu_id || menuForzado || memoria.menuId || porDefecto?.id || null);
   const [dia, setDia] = useState(diaForzado || memoria.dia);
   const [pendiente, setPendiente] = useState(null);
   const [vista, setVista] = useState(leerVista);
+  const [moviendo, setMoviendo] = useState(!!aMover);
+  const [elegida, setElegida] = useState(aMover?.id || null);
+  const [ocupado, setOcupado] = useState(false);
+  const llegaParaMover = useRef(!!aMover);
+  useEffect(() => {
+    memoria.mover = null;
+    if (!llegaParaMover.current) return undefined;
+    // Se enseña el plato elegido (puede estar al final de la semana)
+    const t = setTimeout(() => document.querySelector('.celda.elegida')?.scrollIntoView({ block: 'center' }), 60);
+    return () => clearTimeout(t);
+  }, []);
   function cambiarVista(v) {
     setVista(v);
     try {
@@ -249,7 +354,7 @@ export default function Semana({ diaForzado, menuForzado }) {
       /* sin almacenamiento */
     }
   }
-  const verSemana = vista === 'semana' && !diaForzado;
+  const verSemana = (vista === 'semana' || moviendo) && !diaForzado;
   const menu = orden.find((m) => m.id === (menuForzado || menuId)) || porDefecto;
   const dias = diasDelMenu(menu, d.comidas);
   const diaVisto = dias.includes(diaForzado || dia) ? diaForzado || dia : dias.includes(hoy) ? hoy : dias[0];
@@ -303,6 +408,28 @@ export default function Semana({ diaForzado, menuForzado }) {
   const nadaMarcado = menu && !d.lista.some((x) => x.menu_id === menu.id && x.marcado);
   const otros = d.personas;
 
+  async function tocarCelda(c) {
+    if (!elegida) {
+      setElegida(c.id);
+      return;
+    }
+    if (elegida === c.id) {
+      setElegida(null);
+      return;
+    }
+    const origenC = comidasMenu.find((x) => x.id === elegida);
+    setElegida(null);
+    setOcupado(true);
+    const ok = await d.acciones.moverComida(origenC, c);
+    setOcupado(false);
+    if (ok) d.avisar(c.receta_id ? 'Intercambiados. La lista ya está al día.' : 'Movido. La lista ya está al día.');
+  }
+
+  function terminarDeMover() {
+    setMoviendo(false);
+    setElegida(null);
+  }
+
   return (
     <div className="app con-tabs">
       <section className="cabecera">
@@ -329,7 +456,15 @@ export default function Semana({ diaForzado, menuForzado }) {
         </header>
         {menu ? (
           <div className="segmentado" role="group" aria-label="Cómo ver la semana">
-            <button type="button" className={verSemana ? '' : 'on'} aria-pressed={!verSemana} onClick={() => cambiarVista('dia')}>
+            <button
+              type="button"
+              className={verSemana ? '' : 'on'}
+              aria-pressed={!verSemana}
+              onClick={() => {
+                terminarDeMover();
+                cambiarVista('dia');
+              }}
+            >
               Día a día
             </button>
             <button type="button" className={verSemana ? 'on' : ''} aria-pressed={verSemana} onClick={() => cambiarVista('semana')}>
@@ -360,14 +495,38 @@ export default function Semana({ diaForzado, menuForzado }) {
       </section>
 
       <main className="cuerpo">
-        <AvisoValorar />
+        {!moviendo ? <AvisoValorar /> : null}
+        {!moviendo ? <AvisoEspecial d={d} hoy={hoy} /> : null}
         {menu && verSemana ? (
           <>
+            {dias[dias.length - 1] >= hoy ? (
+              <div className={`mover-barra${moviendo ? ' activa' : ''}`} aria-live="polite">
+                {moviendo ? (
+                  <>
+                    <span>
+                      {elegida ? 'Ahora toca el hueco al que lo llevas. Si ya hay otro plato, se intercambian.' : 'Toca el plato que quieres cambiar de día.'}
+                    </span>
+                    <button type="button" className="boton peq lima" onClick={terminarDeMover}>
+                      Listo
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="boton-texto" onClick={() => setMoviendo(true)} disabled={!d.enLinea}>
+                    <Icono n="mover" t={18} />
+                    Mover platos de día
+                  </button>
+                )}
+              </div>
+            ) : null}
             <Tablero
               d={d}
               dias={dias}
               comidasMenu={comidasMenu}
               hoy={hoy}
+              moviendo={moviendo}
+              ocupado={ocupado}
+              elegida={elegida}
+              alTocar={tocarCelda}
               alElegirDia={(f) => {
                 setDia(f);
                 cambiarVista('dia');

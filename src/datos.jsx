@@ -43,6 +43,18 @@ function mapasDe(d) {
   };
 }
 
+// Configuración del plato especial del hogar para el generador
+function especialDe(hogar) {
+  return hogar?.dia_especial != null ? { dia: hogar.dia_especial, tipo: hogar.tipo_especial || 'comida' } : null;
+}
+
+// receta_id -> última fecha en la que salió en el menú (para que los especiales roten)
+function ultimoUsoDe(comidas) {
+  const m = new Map();
+  for (const c of comidas) if (c.receta_id && (!m.has(c.receta_id) || c.fecha > m.get(c.receta_id))) m.set(c.receta_id, c.fecha);
+  return m;
+}
+
 function comprobar(r) {
   if (r.error) throw r.error;
   return r.data;
@@ -395,6 +407,35 @@ export function ProveedorDatos({ children }) {
     return true;
   }
 
+  // Lleva un plato a otro hueco de la misma semana; si allí había otro, se intercambian
+  async function moverComida(origen, destino) {
+    if (!origen || !destino || origen.id === destino.id) return false;
+    const a = origen.receta_id ?? null;
+    const b = destino.receta_id ?? null;
+    setDatos((x) => ({
+      ...x,
+      comidas: x.comidas.map((c) => (c.id === origen.id ? { ...c, receta_id: b } : c.id === destino.id ? { ...c, receta_id: a } : c)),
+    }));
+    const [r1, r2] = await Promise.all([
+      supabase.from('menu_comidas').update({ receta_id: b }).eq('id', origen.id),
+      supabase.from('menu_comidas').update({ receta_id: a }).eq('id', destino.id),
+    ]);
+    if (r1.error || r2.error) {
+      avisar(mensajeError(r1.error || r2.error), 'error');
+      cargar();
+      return false;
+    }
+    // Cambia qué día se usa cada cosa: se recalcula lo que hay que congelar
+    const menu = ref.current.menus.find((m) => m.id === origen.menu_id);
+    try {
+      if (menu) await regenerarLista(menu);
+    } catch (e) {
+      console.error(e);
+      avisar('Movido, pero la lista no se ha podido actualizar. Abre la app otra vez con conexión.', 'error');
+    }
+    return true;
+  }
+
   async function prepararSemana() {
     const d = ref.current;
     const hoy = hoyISO();
@@ -413,6 +454,8 @@ export function ProveedorDatos({ children }) {
       momentos: d.hogar.comidas,
       recientes,
       medias: mediasDe(resumenNotas(d.valoraciones)),
+      especial: especialDe(d.hogar),
+      ultimoUso: ultimoUsoDe(d.comidas),
       semilla: Date.now(),
     });
     const r = await supabase.from('menus').insert({ hogar_id: d.hogar.id, semana_inicio: inicio }).select().single();
@@ -452,6 +495,8 @@ export function ProveedorDatos({ children }) {
       momentos: d.hogar.comidas,
       recientes,
       medias: mediasDe(resumenNotas(d.valoraciones)),
+      especial: especialDe(d.hogar),
+      ultimoUso: ultimoUsoDe(d.comidas.filter((c) => c.menu_id !== menu.id)),
       semilla: Date.now(),
     }).filter((h) => dias.has(h.fecha));
     comprobar(await supabase.from('menu_comidas').delete().eq('menu_id', menu.id));
@@ -668,6 +713,7 @@ export function ProveedorDatos({ children }) {
       anadirALista,
       quitarDeLista,
       cambiarComida,
+      moverComida,
       prepararSemana,
       rehacerSemana,
       regenerarLista,

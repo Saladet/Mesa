@@ -87,7 +87,7 @@ export default function App() {
       pantalla = <PantallaPlato recetaId={ruta.id} />;
       break;
     case 'cocinar':
-      pantalla = <Cocinar recetaId={ruta.id} />;
+      pantalla = <Cocinar recetaId={ruta.id} comidaId={ruta.extra} />;
       break;
     case 'cambiar': {
       const comida = d.comidas.find((c) => c.id === ruta.id);

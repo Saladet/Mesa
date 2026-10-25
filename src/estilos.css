@@ -22,6 +22,8 @@
   --azul: #1F4E79;
   --rojo-fondo: #FBE9E4;
   --rojo: #8A2E1B;
+  --estrella: #F2B33D;
+  --estrella-borde: #B7791F;
   --display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
   --ui: 'Manrope Variable', Manrope, ui-sans-serif, system-ui, sans-serif;
   --arriba: env(safe-area-inset-top, 0px);
@@ -319,6 +321,53 @@ img { display: block; max-width: 100%; }
   border-top: 1px solid var(--linea); background: var(--blanco);
 }
 .enlace-origen { color: var(--acento); font-weight: 700; }
+
+/* ---------- Valoraciones ---------- */
+.estrella { flex: none; fill: none; stroke: var(--discontinua); stroke-width: 1.6; stroke-linejoin: round; transition: transform 0.12s; }
+.estrella.llena { fill: var(--estrella); stroke: var(--estrella-borde); }
+.puntuacion { display: inline-flex; align-items: center; gap: 1px; }
+.media { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; white-space: nowrap; }
+.elegir-estrellas { display: flex; margin-left: -6px; }
+.elegir-estrellas button { width: 46px; height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 14px; background: none; color: inherit; }
+.elegir-estrellas button:active .estrella { transform: scale(0.86); }
+.elegir-estrellas button:disabled { cursor: default; opacity: 0.5; }
+.valorar { display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 22px; background: var(--superficie); scroll-margin-top: 16px; }
+.valorar .subtitulo { margin: 0; }
+.valorar-persona { display: flex; flex-direction: column; gap: 6px; }
+.valorar-persona + .valorar-persona { padding-top: 14px; border-top: 1px solid var(--borde); }
+.valorar-cab { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; }
+.valorar-cab small { font-weight: 600; color: var(--gris); }
+.etiqueta-nota { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--acento); }
+.comentario { width: 100%; min-height: 80px; padding: 12px 14px; border: 1px solid var(--borde); border-radius: 14px; background: var(--blanco); color: var(--tinta); font-size: 16px; line-height: 1.4; resize: vertical; }
+.comentario:focus { border-color: var(--acento); outline: none; box-shadow: 0 0 0 1px var(--acento); }
+.atajos { display: flex; flex-wrap: wrap; gap: 6px; }
+.atajos .chip { min-height: 36px; padding: 0 12px; font-size: 13px; }
+.valorar-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.cita { margin: 0; font-size: 15px; line-height: 1.45; }
+.notas { display: flex; flex-direction: column; }
+.notas .subtitulo { margin-bottom: 0; }
+.nota-grupo { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--linea); }
+.nota-fecha { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gris); }
+.nota-fila { display: flex; align-items: flex-start; gap: 10px; }
+.nota-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nota-quien { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; font-size: 14px; font-weight: 700; }
+.nota-txt p { margin: 0; font-size: 15px; line-height: 1.45; }
+.aviso-valorar { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 10px; border: 1px solid var(--borde); border-radius: 24px; background: var(--blanco); box-shadow: 0 6px 20px rgba(16, 38, 28, 0.06); }
+.aviso-valorar-plato { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--tinta); }
+.aviso-valorar-textos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.aviso-valorar-titulo { font-size: 16px; font-weight: 700; line-height: 1.25; }
+.aviso-valorar h3 { margin: 2px 0 0; font-family: var(--display); font-size: 20px; line-height: 1.15; font-weight: 800; }
+.aviso-valorar-fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
+.aviso-valorar-gracias { margin: 0; font-size: 15px; line-height: 1.4; }
+.ultima-vez { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 18px; background: var(--verde-2); }
+.ultima-vez > span { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lima); }
+.ultima-vez p { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; }
+.ultima-vez small { font-weight: 600; color: var(--claro-2); }
+.fin-valorar { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 6px; }
+.fin-valorar > span { font-size: 15px; font-weight: 700; color: var(--claro); }
+.fin-valorar .elegir-estrellas { margin-left: 0; }
+.cocina .estrella { stroke: var(--claro-2); }
+.cocina .estrella.llena { fill: var(--lima); stroke: var(--lima); }
 
 /* ---------- Hoja inferior (Cambiar) ---------- */
 .velo { position: fixed; inset: 0; z-index: 30; background: rgba(16, 38, 28, 0.55); animation: aparecer 0.18s ease-out; }

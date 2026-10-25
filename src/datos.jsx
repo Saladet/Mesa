@@ -6,6 +6,7 @@ import { generarSemana, siguienteInicio } from './logic/generar.js';
 import { hoyISO, capital } from './logic/fechas.js';
 import { normalizar } from './logic/reglas.js';
 import { ordenarMenus, finDelMenu, diasDelMenu } from './logic/semanas.js';
+import { resumenNotas, mediasDe, ponerValoracion, quitarValoracion, buscarValoracion } from './logic/valoraciones.js';
 
 const Ctx = createContext(null);
 export function useDatos() {
@@ -33,7 +34,7 @@ function guardar(k, v) {
   }
 }
 
-const VACIO = { hogar: null, personas: [], restricciones: [], ingredientes: [], recetas: [], menus: [], comidas: [], lista: [], importaciones: [] };
+const VACIO = { hogar: null, personas: [], restricciones: [], ingredientes: [], recetas: [], menus: [], comidas: [], lista: [], importaciones: [], valoraciones: [] };
 
 function mapasDe(d) {
   return {
@@ -77,6 +78,7 @@ export function ProveedorDatos({ children }) {
   ref.current = datos;
   const ultimaCarga = useRef(0);
   const vinculado = useRef(false);
+  const colas = useRef(new Map());
   const uid = sesion?.user?.id ?? null;
   const uidRef = useRef(uid);
   uidRef.current = uid;
@@ -118,7 +120,7 @@ export function ProveedorDatos({ children }) {
         await supabase.rpc('vincular_persona');
         vinculado.current = true;
       }
-      const [personas, hogar, restricciones, ingredientes, recetas, menusDesc, importaciones] = await Promise.all([
+      const [personas, hogar, restricciones, ingredientes, recetas, menusDesc, importaciones, valoraciones] = await Promise.all([
         supabase.from('personas').select('*').order('orden').then(comprobar),
         supabase.from('hogares').select('*').limit(1).maybeSingle().then(comprobar),
         supabase.from('restricciones').select('*').order('created_at').then(comprobar),
@@ -126,6 +128,7 @@ export function ProveedorDatos({ children }) {
         supabase.from('recetas').select('*, receta_ingredientes(*)').order('titulo').then(comprobar),
         supabase.from('menus').select('*').order('semana_inicio', { ascending: false }).limit(8).then(comprobar),
         supabase.from('importaciones').select('*').eq('estado', 'pendiente').order('created_at').then(comprobar),
+        supabase.from('valoraciones').select('*').order('fecha', { ascending: false }).then(comprobar),
       ]);
       const menus = ordenarMenus(menusDesc);
       const ids = menus.map((m) => m.id);
@@ -138,7 +141,7 @@ export function ProveedorDatos({ children }) {
         ]);
       }
       for (const r of recetas) (r.receta_ingredientes || []).sort((a, b) => a.orden - b.orden);
-      const nuevos = { hogar, personas, restricciones, ingredientes, recetas, menus, comidas, lista, importaciones };
+      const nuevos = { hogar, personas, restricciones, ingredientes, recetas, menus, comidas, lista, importaciones, valoraciones };
       if (uidRef.current !== uid) return null;
       setDatos(nuevos);
       guardar(CLAVE_CACHE, { uid, datos: nuevos });
@@ -203,12 +206,28 @@ export function ProveedorDatos({ children }) {
         return { ...d, [clave]: copia };
       });
     };
+    // Lo que valora el otro aparece al momento
+    const aplicarValoracion = (cambio) => {
+      if (cambio.eventType === 'DELETE') {
+        const id = cambio.old?.id;
+        if (id) setDatos((d) => ({ ...d, valoraciones: d.valoraciones.filter((v) => v.id !== id) }));
+        return;
+      }
+      const fila = cambio.new;
+      if (!fila?.id || fila.hogar_id !== hogarId) return;
+      setDatos((d) => {
+        const actual = buscarValoracion(d.valoraciones, fila.receta_id, fila.persona_id, fila.fecha);
+        if (actual && Date.parse(actual.updated_at) > Date.parse(fila.updated_at)) return d; // ya hay algo más nuevo
+        return { ...d, valoraciones: ponerValoracion(d.valoraciones, fila) };
+      });
+    };
     const canal = supabase
       .channel(`mesa-${hogarId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lista_items' }, aplicar('lista'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_comidas' }, aplicar('comidas'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menus' }, recargarLuego)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recetas' }, recargarLuego)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'valoraciones' }, aplicarValoracion)
       .subscribe();
     return () => {
       clearTimeout(espera);
@@ -268,6 +287,8 @@ export function ProveedorDatos({ children }) {
     }),
     [datos.ingredientes, datos.recetas, datos.personas],
   );
+  const notas = useMemo(() => resumenNotas(datos.valoraciones), [datos.valoraciones]);
+  const medias = useMemo(() => mediasDe(notas), [notas]);
   const yo = datos.personas.find((p) => p.user_id === uid) || null;
   const comensales = Math.max(1, datos.personas.length);
 
@@ -391,6 +412,7 @@ export function ProveedorDatos({ children }) {
       reglas: d.hogar.reglas,
       momentos: d.hogar.comidas,
       recientes,
+      medias: mediasDe(resumenNotas(d.valoraciones)),
       semilla: Date.now(),
     });
     const r = await supabase.from('menus').insert({ hogar_id: d.hogar.id, semana_inicio: inicio }).select().single();
@@ -429,6 +451,7 @@ export function ProveedorDatos({ children }) {
       reglas: d.hogar.reglas,
       momentos: d.hogar.comidas,
       recientes,
+      medias: mediasDe(resumenNotas(d.valoraciones)),
       semilla: Date.now(),
     }).filter((h) => dias.has(h.fecha));
     comprobar(await supabase.from('menu_comidas').delete().eq('menu_id', menu.id));
@@ -457,6 +480,63 @@ export function ProveedorDatos({ children }) {
     const veces = (receta.veces_cocinada || 0) + 1;
     actualizarLocal('recetas', receta.id, { veces_cocinada: veces });
     await supabase.from('recetas').update({ veces_cocinada: veces }).eq('id', receta.id);
+  }
+
+  // Guarda la puntuación y/o el comentario de una persona sobre el plato de un día.
+  // Sin puntuación ni comentario, la valoración se borra.
+  // Se ve al momento en pantalla; en la base de datos se guardan en orden (por si se toca dos veces seguidas)
+  function valorar({ receta, persona, fecha, puntuacion, comentario }) {
+    const d = ref.current;
+    const existente = buscarValoracion(d.valoraciones, receta.id, persona.id, fecha);
+    const nota = puntuacion !== undefined ? puntuacion : existente?.puntuacion ?? null;
+    const texto = (comentario !== undefined ? comentario : existente?.comentario ?? '').trim() || null;
+    const filtro = { receta_id: receta.id, persona_id: persona.id, fecha };
+    const k = `${receta.id}|${persona.id}|${fecha}`;
+    const ahora = new Date().toISOString();
+
+    if (!nota && !texto) {
+      if (!existente) return Promise.resolve(null);
+      setDatos((x) => ({ ...x, valoraciones: quitarValoracion(x.valoraciones, existente) }));
+      return enCola(k, async () => {
+        const r = await supabase.from('valoraciones').delete().match(filtro);
+        if (r.error) {
+          setDatos((x) => ({ ...x, valoraciones: ponerValoracion(x.valoraciones, existente) }));
+          throw r.error;
+        }
+        return null;
+      });
+    }
+
+    const fila = { hogar_id: d.hogar.id, ...filtro, puntuacion: nota, comentario: texto, updated_at: ahora };
+    const provisional = existente ? { ...existente, ...fila } : { id: `nueva-${Date.now()}`, created_at: ahora, ...fila };
+    setDatos((x) => ({ ...x, valoraciones: ponerValoracion(x.valoraciones, provisional) }));
+    return enCola(k, async () => {
+      const r = await supabase.from('valoraciones').upsert(fila, { onConflict: 'receta_id,persona_id,fecha' }).select().single();
+      const esLaUltima = (x) => {
+        const actual = buscarValoracion(x.valoraciones, receta.id, persona.id, fecha);
+        return !actual || Date.parse(actual.updated_at) <= Date.parse(ahora);
+      };
+      if (r.error) {
+        setDatos((x) =>
+          esLaUltima(x)
+            ? { ...x, valoraciones: existente ? ponerValoracion(x.valoraciones, existente) : quitarValoracion(x.valoraciones, provisional) }
+            : x,
+        );
+        throw r.error;
+      }
+      setDatos((x) => (esLaUltima(x) ? { ...x, valoraciones: ponerValoracion(x.valoraciones, r.data) } : x));
+      return r.data;
+    });
+  }
+
+  function enCola(k, tarea) {
+    const previa = colas.current.get(k) || Promise.resolve();
+    const siguiente = previa.catch(() => {}).then(tarea);
+    colas.current.set(k, siguiente);
+    siguiente.finally(() => {
+      if (colas.current.get(k) === siguiente) colas.current.delete(k);
+    }).catch(() => {});
+    return siguiente;
   }
 
   async function importarEnlace(url) {
@@ -579,6 +659,8 @@ export function ProveedorDatos({ children }) {
     comensales,
     ...datos,
     ...mapas,
+    notas,
+    medias,
     recargar: cargar,
     acciones: {
       marcarItem,
@@ -591,6 +673,7 @@ export function ProveedorDatos({ children }) {
       regenerarLista,
       subirFoto,
       marcarCocinada,
+      valorar,
       importarEnlace,
       actualizarHogar,
       anadirRestriccion,

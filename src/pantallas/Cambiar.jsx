@@ -6,6 +6,7 @@ import { tiempo, origen, minuscula } from '../ui/textos.jsx';
 import { etiquetaDia } from '../logic/fechas.js';
 import { NOMBRE_TIPO } from '../logic/semanas.js';
 import { alternativas } from '../logic/generar.js';
+import { formatoMedia } from '../logic/valoraciones.js';
 import { volver } from '../ruta.js';
 
 const MOTIVOS = [
@@ -62,9 +63,10 @@ export default function Cambiar({ comidaId }) {
       reglas: d.hogar?.reglas,
       motivos,
       enLista,
+      medias: d.medias,
       semilla,
     });
-  }, [comida, menu, actual, d.comidas, d.recetas, d.recetasMap, d.ingMap, d.restricciones, d.hogar, motivos, semilla]);
+  }, [comida, menu, actual, d.comidas, d.recetas, d.recetasMap, d.ingMap, d.restricciones, d.hogar, d.medias, motivos, semilla]);
 
   const paginas = Math.max(1, Math.ceil(opciones.length / POR_PAGINA));
   const visibles = opciones.slice(pagina * POR_PAGINA, pagina * POR_PAGINA + POR_PAGINA);
@@ -153,7 +155,11 @@ export default function Cambiar({ comidaId }) {
                   <Portada receta={receta} forma="mini" />
                   <span className="opcion-textos">
                     <span className="opcion-titulo">{receta.titulo}</span>
-                    <span className="meta">{[tiempo(receta.tiempo_min), origen(receta), razon].filter(Boolean).join(' · ')}</span>
+                    <span className="meta">
+                      {[tiempo(receta.tiempo_min), origen(receta), d.medias.has(receta.id) ? `★ ${formatoMedia(d.medias.get(receta.id))}` : null, razon]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
                   </span>
                 </label>
               ))}

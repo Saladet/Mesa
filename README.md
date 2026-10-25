@@ -9,6 +9,7 @@ El menú de la semana, la lista de la compra compartida y las recetas de casa.
 - **Semana**: comida y cena de cada día, con un plato dibujado hasta que le hagáis foto. Cada plato se puede cambiar por otro que encaje con las reglas de la semana.
 - **Lista**: se monta sola con los ingredientes de la semana, agrupada por secciones del súper. Lo que marca uno lo ve el otro al momento. Avisa de lo que hay que congelar al llegar.
 - **Recetas**: el recetario, con modo cocina paso a paso y temporizadores.
+- **Valoraciones**: cada uno puntúa los platos (1-5 estrellas) y deja un comentario. Lo de la última vez sale en el plato y al empezar a cocinar; lo que gustó aparece más en las semanas y lo de «No lo repetimos» deja de salir solo.
 - **Hogar**: quién come, qué no come cada uno (datos estructurados, no texto libre), día de compra y reglas (legumbre, carne, huevo, caprichos).
 
 ## Cómo está hecha

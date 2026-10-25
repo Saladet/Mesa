@@ -5,24 +5,29 @@ import Portada from '../ui/Portada.jsx';
 import { tiempo, veces, dominio } from '../ui/textos.jsx';
 import { normalizar, conflictosReceta, esBloqueante } from '../logic/reglas.js';
 import { mensajeError } from '../supabase.js';
+import { formatoMedia } from '../logic/valoraciones.js';
 
 const memoria = { filtro: 'todas' };
 
+// Cada filtro recibe la receta y su resumen de notas (si lo hay)
 const FILTROS = [
   ['todas', 'Todas', () => true],
+  ['favoritas', 'Favoritas', (r, nota) => nota?.media != null && nota.media >= 4],
   ['rapidas', 'Rápidas', (r) => (r.tiempo_min || 99) <= 20],
   ['legumbre', 'Legumbre', (r) => r.proteina === 'legumbre'],
   ['carne', 'Carne', (r) => r.proteina === 'carne'],
   ['huevo', 'Huevo', (r) => r.proteina === 'huevo'],
   ['vegetal', 'Vegetal', (r) => r.proteina === 'lacteo' || r.proteina === 'otro'],
   ['caprichos', 'Caprichos', (r) => r.capricho],
-  ['probadas', 'Probadas', (r) => r.veces_cocinada > 0],
+  ['probadas', 'Probadas', (r, nota) => r.veces_cocinada > 0 || !!nota],
   ['desayunos', 'Desayunos', (r) => (r.momentos || []).includes('desayuno')],
 ];
 
-function metaFicha(r) {
+function metaFicha(r, nota) {
   const partes = [];
+  if (nota?.media != null) partes.push(`★ ${formatoMedia(nota.media)}`);
   if (r.veces_cocinada > 0) partes.push(`Hecha ${veces(r.veces_cocinada)}`);
+  else if (nota) partes.push('Probada');
   else if (r.origen === 'importada') partes.push('Importada');
   else if (r.origen === 'vuestra') partes.push('Vuestra');
   else partes.push('Nueva · sin probar');
@@ -42,7 +47,7 @@ export default function Recetas() {
   const q = normalizar(busqueda);
   const hayDesayunos = d.recetas.some((r) => (r.momentos || []).includes('desayuno'));
   const visibles = d.recetas
-    .filter(regla[2])
+    .filter((r) => regla[2](r, d.notas.get(r.id)))
     .filter((r) => filtro === 'desayunos' || !((r.momentos || []).length === 1 && r.momentos[0] === 'desayuno'))
     .filter((r) => !q || normalizar(r.titulo).includes(q) || (r.receta_ingredientes || []).some((ri) => normalizar(ri.texto_original).includes(q)))
     .sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'));
@@ -155,7 +160,7 @@ export default function Recetas() {
                 <a key={r.id} className="ficha" href={`#/receta/${r.id}`}>
                   <Portada receta={r} forma="rejilla" />
                   <span className="ficha-titulo">{r.titulo}</span>
-                  <span className="ficha-meta">{noApta ? 'No apta para todos' : metaFicha(r)}</span>
+                  <span className="ficha-meta">{noApta ? 'No apta para todos' : metaFicha(r, d.notas.get(r.id))}</span>
                 </a>
               );
             })}

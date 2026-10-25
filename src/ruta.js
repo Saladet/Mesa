@@ -18,9 +18,9 @@ window.addEventListener('hashchange', () => {
 
 export function leerRuta() {
   const h = window.location.hash.replace(/^#\/?/, '');
-  if (/^(access_token|error|type|refresh_token)=/.test(h)) return { nombre: 'semana', id: null };
+  if (/^(access_token|error|type|refresh_token)=/.test(h)) return { nombre: 'semana', id: null, extra: null };
   const partes = h.split('?')[0].split('/').filter(Boolean).map(decodeURIComponent);
-  return { nombre: partes[0] || 'semana', id: partes[1] || null };
+  return { nombre: partes[0] || 'semana', id: partes[1] || null, extra: partes[2] || null };
 }
 
 export function useRuta() {

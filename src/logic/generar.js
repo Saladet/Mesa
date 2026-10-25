@@ -1,6 +1,7 @@
 // Propuesta de menú semanal y alternativas para cambiar un plato.
 import { conflictosReceta, esBloqueante, contarSemana, reglasCompletas } from './reglas.js';
 import { sumarDias, diaSemana, diasEntre } from './fechas.js';
+import { MEDIA_MINIMA } from './valoraciones.js';
 
 export const TIPOS = ['desayuno', 'comida', 'cena'];
 
@@ -45,7 +46,18 @@ function azarCon(semilla) {
  * Rellena hueco a hueco con algo de azar (para que las semanas cambien), respetando las reglas,
  * poniendo lo que caduca antes al principio y buscando una semana equilibrada.
  */
-export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, momentos, recientes = new Set(), intentos = 60, semilla = Date.now() }) {
+export function generarSemana({
+  inicio,
+  recetas,
+  ingMap,
+  restricciones,
+  reglas,
+  momentos,
+  recientes = new Set(),
+  medias = new Map(),
+  intentos = 60,
+  semilla = Date.now(),
+}) {
   const azar = azarCon(semilla);
   const r = reglasCompletas(reglas);
   const tipos = TIPOS.filter((t) => momentos.includes(t));
@@ -54,6 +66,8 @@ export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, 
   for (const receta of recetas) {
     const conf = conflictosReceta(receta, restricciones, ingMap);
     if (conf.some(esBloqueante)) continue;
+    const media = medias.get(receta.id);
+    if (media != null && media < MEDIA_MINIMA) continue; // «No lo repetimos»: ya no sale sola
     permitidas.push(receta);
     blandas.set(receta.id, conf.length);
   }
@@ -145,6 +159,8 @@ export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, 
             else if (f <= 5) p += d <= 3 ? 0.3 : -2;
             if (x.proteina === 'carne' && d <= 1) p += 0.4;
             if ((x.veces_cocinada || 0) > 0) p += 0.3;
+            const media = medias.get(x.id);
+            if (media != null) p += (media - 3) * 0.5; // lo que os gustó sale más
           }
           if (p > mejorP) {
             mejorP = p;
@@ -178,7 +194,22 @@ export function generarSemana({ inicio, recetas, ingMap, restricciones, reglas, 
  * Alternativas para un hueco del menú, de mejor a peor.
  * motivos: Set con 'apetece' | 'largo' | 'falta' | 'proteina'
  */
-export function alternativas({ inicio, fecha, tipo, actual, comidasMenu, recetas, recetasMap, ingMap, restricciones, reglas, motivos, enLista, semilla = 1 }) {
+export function alternativas({
+  inicio,
+  fecha,
+  tipo,
+  actual,
+  comidasMenu,
+  recetas,
+  recetasMap,
+  ingMap,
+  restricciones,
+  reglas,
+  motivos,
+  enLista,
+  medias = new Map(),
+  semilla = 1,
+}) {
   const r = reglasCompletas(reglas);
   const azar = azarCon(semilla);
   const jitter = new Map(recetas.map((x) => [x.id, azar()]));
@@ -223,12 +254,17 @@ export function alternativas({ inicio, fecha, tipo, actual, comidasMenu, recetas
     if (rompe) p -= 3;
     p -= 2 * conf.length;
     if ((x.veces_cocinada || 0) > 0) p += 0.7;
+    const media = medias.get(x.id);
+    const noGusto = media != null && media < MEDIA_MINIMA;
+    if (media != null) p += (media - 3) * 0.6;
+    if (noGusto) p -= 4;
     const f = frescura(x, ingMap);
     if (f < 99 && desfase > f) p -= 2;
     if (motivos.has('largo')) p += (30 - (x.tiempo_min ?? 30)) / 15;
 
     let razon = null;
-    if (rompe) razon = 'Os quedaríais cortos de legumbre';
+    if (noGusto) razon = 'No os convenció';
+    else if (rompe) razon = 'Os quedaríais cortos de legumbre';
     else if (nuevos === 0) razon = 'No hay que comprar nada más';
     else if (nuevos === 1) razon = 'Solo hay que comprar 1 cosa';
     else if (nuevos <= 3) razon = `Solo hay que comprar ${nuevos} cosas`;

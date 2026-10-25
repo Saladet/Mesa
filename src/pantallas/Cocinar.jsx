@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useDatos } from '../datos.jsx';
 import Icono from '../ui/Icono.jsx';
 import { Resaltado } from '../ui/textos.jsx';
+import { ElegirEstrellas } from '../ui/Estrellas.jsx';
+import { UltimaVez } from '../ui/Notas.jsx';
+import { ETIQUETAS, buscarValoracion } from '../logic/valoraciones.js';
+import { hoyISO } from '../logic/fechas.js';
+import { mensajeError } from '../supabase.js';
 import { formatoCantidad, escalar } from '../logic/cantidades.js';
 import { NoEncontrado } from './Plato.jsx';
 import { volver, ir } from '../ruta.js';
@@ -17,9 +22,11 @@ function nombreTemporizador(n, min) {
   return `Paso ${n} · ${min} min`;
 }
 
-export default function Cocinar({ recetaId }) {
+export default function Cocinar({ recetaId, comidaId }) {
   const d = useDatos();
   const receta = d.recetasMap.get(recetaId);
+  const comida = comidaId ? d.comidas.find((c) => c.id === comidaId) : null;
+  const fechaValorar = comida?.fecha ?? hoyISO();
   const pasos = receta?.pasos || [];
   const [i, setI] = useState(0);
   const [temporizadores, setTemporizadores] = useState([]);
@@ -136,15 +143,39 @@ export default function Cocinar({ recetaId }) {
   const delPasoActivo = temporizadores.find((t) => t.paso === i + 1);
 
   if (terminado) {
+    const destino = comida ? `plato/${comida.id}` : `receta/${receta.id}`;
+    const mia = d.yo ? buscarValoracion(d.valoraciones, receta.id, d.yo.id, fechaValorar) : null;
+    const valor = mia?.puntuacion || 0;
     return (
       <div className="cocina app">
         <div className="fin-cocina">
           <h2>¡Que aproveche!</h2>
           <p>{receta.titulo}</p>
+          {d.yo ? (
+            <div className="fin-valorar">
+              <span>{valor ? ETIQUETAS[valor] : 'Cuando lo probéis: ¿qué tal ha quedado?'}</span>
+              <ElegirEstrellas
+                valor={valor}
+                etiqueta="Tu puntuación"
+                deshabilitado={!d.enLinea}
+                alCambiar={(n) =>
+                  d.acciones.valorar({ receta, persona: d.yo, fecha: fechaValorar, puntuacion: n }).catch((e) => {
+                    console.error(e);
+                    d.avisar(mensajeError(e), 'error');
+                  })
+                }
+              />
+            </div>
+          ) : null}
           {!receta.foto_url ? <p>¿Le hacéis una foto? Así la próxima vez sale en el menú.</p> : null}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320, marginTop: 10 }}>
+            {valor ? (
+              <button className="boton lima" type="button" onClick={() => ir(`${destino}?comentar`, { reemplazar: true })}>
+                Añadir un comentario
+              </button>
+            ) : null}
             {!receta.foto_url ? (
-              <button className="boton lima" type="button" onClick={() => ir(`receta/${receta.id}`, { reemplazar: true })}>
+              <button className={valor ? 'boton borde-oscuro' : 'boton lima'} type="button" onClick={() => ir(destino, { reemplazar: true })}>
                 <Icono n="camara" />
                 Hacer una foto
               </button>
@@ -196,6 +227,7 @@ export default function Cocinar({ recetaId }) {
       ) : null}
 
       <main className="cocina-cuerpo">
+        {i === 0 ? <UltimaVez receta={receta} antesDe={fechaValorar} /> : null}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <span className="paso-n">
             Paso {i + 1} de {pasos.length}

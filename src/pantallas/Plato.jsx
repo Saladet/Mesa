@@ -1,10 +1,13 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDatos } from '../datos.jsx';
 import Icono from '../ui/Icono.jsx';
 import Portada from '../ui/Portada.jsx';
 import { Avatares } from '../ui/Avatar.jsx';
 import { tiempo, veces, dominio, minuscula, Resaltado } from '../ui/textos.jsx';
-import { etiquetaDiaMin } from '../logic/fechas.js';
+import { etiquetaDiaMin, hoyISO } from '../logic/fechas.js';
+import { ValorarComida, NotasAnteriores } from '../ui/Notas.jsx';
+import { yaComido } from '../logic/valoraciones.js';
+import { Media } from '../ui/Estrellas.jsx';
 import { NOMBRE_TIPO } from '../logic/semanas.js';
 import { conflictosReceta, esBloqueante, nombreRestriccion, PROTEINAS } from '../logic/reglas.js';
 import { formatoCantidad, escalar } from '../logic/cantidades.js';
@@ -35,8 +38,16 @@ export default function PantallaPlato({ comidaId, recetaId }) {
   const entrada = useRef(null);
   const [todos, setTodos] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
+  const posicion = useRef({}); // dónde va la valoración: se decide al entrar y no se mueve
   const comida = comidaId ? d.comidas.find((c) => c.id === comidaId) : null;
   const receta = d.recetasMap.get(comida ? comida.receta_id : recetaId);
+  const comentar = window.location.hash.includes('?comentar');
+
+  // Al venir de «Añadir un comentario», se baja hasta la valoración
+  useEffect(() => {
+    if (comentar) document.getElementById('valorar')?.scrollIntoView({ block: 'start' });
+  }, [comentar, comidaId]);
+
   if (!receta) return <NoEncontrado texto={comidaId ? 'Este plato ya no está en el menú.' : 'No encuentro esta receta.'} />;
 
   const factor = d.comensales / (receta.raciones || 2);
@@ -45,8 +56,26 @@ export default function PantallaPlato({ comidaId, recetaId }) {
   const conflictos = conflictosReceta(receta, d.restricciones, d.ingMap);
   const etiqueta = comida ? `${NOMBRE_TIPO[comida.tipo]} · ${etiquetaDiaMin(comida.fecha)}` : 'Receta';
 
+  const hoy = hoyISO();
+  const nota = d.notas.get(receta.id);
+  // Se valora el plato de un día ya comido, el que ya empezasteis a valorar (por ejemplo, al terminar de
+  // cocinarlo antes de tiempo) o, fuera del menú, el que habéis valorado hoy
+  const yaValorada = (f) => d.valoraciones.some((v) => v.receta_id === receta.id && v.fecha === f);
+  let fechaValorar = null;
+  if (comida) fechaValorar = comida.fecha <= hoy || yaValorada(comida.fecha) ? comida.fecha : null;
+  else if (yaValorada(hoy)) fechaValorar = hoy;
+  // Si es el plato de hoy y aún no lo habéis comido, la valoración va al final (para no estorbar al cocinar)
+  const clavePosicion = `${comidaId || recetaId}|${fechaValorar}`;
+  if (posicion.current[clavePosicion] === undefined) {
+    posicion.current[clavePosicion] =
+      !!fechaValorar && (!comida || comentar || yaValorada(fechaValorar) || yaComido(comida, hoy, new Date().getHours()));
+  }
+  const valorarArriba = posicion.current[clavePosicion];
+  const valorar = fechaValorar ? <ValorarComida receta={receta} fecha={fechaValorar} abrirComentario={comentar} /> : null;
+
   let historia;
   if (receta.veces_cocinada > 0) historia = `La habéis hecho ${veces(receta.veces_cocinada)}.`;
+  else if (nota) historia = 'Ya la habéis probado.';
   else if (receta.origen === 'importada') historia = 'Importada de una web; todavía no la habéis probado.';
   else if (receta.origen === 'vuestra') historia = 'Receta vuestra.';
   else historia = 'Receta nueva: todavía no la habéis probado.';
@@ -110,6 +139,12 @@ export default function PantallaPlato({ comidaId, recetaId }) {
           <Avatares personas={d.personas} tam={28} borde="#FFFFFF" />
           <span>
             {historia}
+            {nota?.media != null ? (
+              <>
+                {' '}
+                <Media media={nota.media} />
+              </>
+            ) : null}
             {receta.url_origen ? (
               <>
                 {' '}
@@ -130,6 +165,9 @@ export default function PantallaPlato({ comidaId, recetaId }) {
               : `mejor poco para ${d.personasMap.get(r.persona_id)?.nombre}`}
           </span>
         ))}
+
+        {valorarArriba ? valorar : null}
+        <NotasAnteriores receta={receta} excluir={fechaValorar} />
 
         <section>
           <h2 className="subtitulo">Ingredientes · para {d.comensales}</h2>
@@ -162,6 +200,7 @@ export default function PantallaPlato({ comidaId, recetaId }) {
             </ol>
           </section>
         ) : null}
+        {!valorarArriba ? valorar : null}
       </main>
 
       <div className="barra-acciones">
@@ -171,7 +210,7 @@ export default function PantallaPlato({ comidaId, recetaId }) {
             <span>Cambiar</span>
           </a>
         ) : null}
-        <button className="boton flex" type="button" onClick={() => ir(`cocinar/${receta.id}`)} disabled={!receta.pasos?.length}>
+        <button className="boton flex" type="button" onClick={() => ir(comida ? `cocinar/${receta.id}/${comida.id}` : `cocinar/${receta.id}`)} disabled={!receta.pasos?.length}>
           Empezar a cocinar
         </button>
       </div>

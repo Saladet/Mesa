@@ -9,6 +9,8 @@ import { diasDelMenu, menuDeHoy, ordenarMenus, finDelMenu, TIPOS_ORDEN, NOMBRE_T
 import { contarSemana, chipsSemana, conflictosReceta, esBloqueante, nombreRestriccion } from '../logic/reglas.js';
 import { descongelarPara } from '../logic/lista.js';
 import { siguienteInicio } from '../logic/generar.js';
+import { formatoMedia } from '../logic/valoraciones.js';
+import { AvisoValorar } from '../ui/Notas.jsx';
 
 // Se recuerda qué semana y qué día estabais mirando al volver de un plato
 const memoria = { menuId: null, dia: null };
@@ -110,7 +112,14 @@ function HuecoVacio({ comida }) {
   );
 }
 
+// "★ 4,5" si ya lo habéis puntuado
+function textoMedia(d, receta) {
+  const m = d.medias.get(receta.id);
+  return m != null ? `★ ${formatoMedia(m)}` : null;
+}
+
 function TarjetaGrande({ comida, receta }) {
+  const d = useDatos();
   if (!receta) return <HuecoVacio comida={comida} />;
   return (
     <article className="tarjeta">
@@ -120,7 +129,7 @@ function TarjetaGrande({ comida, receta }) {
           <span className="momento">{NOMBRE_TIPO[comida.tipo]}</span>
           <span className="tarjeta-titulo">{receta.titulo}</span>
           <span className="meta">
-            {[tiempo(receta.tiempo_min), origen(receta), receta.capricho ? 'capricho' : null].filter(Boolean).join(' · ')}
+            {[tiempo(receta.tiempo_min), origen(receta), receta.capricho ? 'capricho' : null, textoMedia(d, receta)].filter(Boolean).join(' · ')}
           </span>
           <Conflictos receta={receta} />
         </span>
@@ -133,6 +142,7 @@ function TarjetaGrande({ comida, receta }) {
 }
 
 function FilaComida({ comida, receta }) {
+  const d = useDatos();
   if (!receta) return <HuecoVacio comida={comida} />;
   return (
     <article className="fila-comida">
@@ -144,7 +154,7 @@ function FilaComida({ comida, receta }) {
             {receta.capricho ? ' · capricho' : ''}
           </span>
           <span className="fila-titulo">{receta.titulo}</span>
-          <span className="meta">{tiempo(receta.tiempo_min)}</span>
+          <span className="meta">{[tiempo(receta.tiempo_min), textoMedia(d, receta)].filter(Boolean).join(' · ')}</span>
           <Conflictos receta={receta} />
         </span>
       </a>
@@ -350,6 +360,7 @@ export default function Semana({ diaForzado, menuForzado }) {
       </section>
 
       <main className="cuerpo">
+        <AvisoValorar />
         {menu && verSemana ? (
           <>
             <Tablero

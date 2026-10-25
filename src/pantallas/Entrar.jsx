@@ -47,7 +47,8 @@ export default function Entrar({ invitado }) {
         await acciones.entrar(email, clave);
       }
     } catch (err) {
-      setError(mensajeError(err));
+      const m = mensajeError(err);
+      setError(!crear && /incorrectos/.test(m) ? `${m} Si todavía no tienes cuenta, toca «¿Primera vez? Crear cuenta».` : m);
     } finally {
       setEnviando(false);
     }

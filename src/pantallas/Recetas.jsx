@@ -6,6 +6,7 @@ import { tiempo, veces, dominio } from '../ui/textos.jsx';
 import { normalizar, conflictosReceta, esBloqueante } from '../logic/reglas.js';
 import { mensajeError } from '../supabase.js';
 import { formatoMedia } from '../logic/valoraciones.js';
+import { ir } from '../ruta.js';
 
 const memoria = { filtro: 'todas' };
 
@@ -67,9 +68,17 @@ export default function Recetas() {
     }
     setGuardando(true);
     try {
-      await d.acciones.importarEnlace(url);
+      const r = await d.acciones.importarEnlace(url);
       setEnlace('');
-      d.avisar('Guardado. Pídele a Claude que importe las recetas pendientes de Mesa.');
+      if (r.estado === 'importada') {
+        d.avisar(r.avisos?.llevaPescado ? `Añadida: ${r.titulo}. Ojo, lleva pescado.` : `Añadida: ${r.titulo}.`);
+        ir(`receta/${r.receta.id}`);
+      } else if (r.estado === 'repetida') {
+        d.avisar(`Ya la teníais: ${r.receta.titulo}.`);
+        ir(`receta/${r.receta.id}`);
+      } else {
+        d.avisar('Esa web no deja leer la receta sola. Queda pendiente: pídele a Claude que la importe.', 'error');
+      }
     } catch (err) {
       d.avisar(mensajeError(err), 'error');
     } finally {
@@ -101,7 +110,7 @@ export default function Recetas() {
             <input id="buscar" className="campo oscuro" type="search" autoFocus value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Garbanzos, pollo, crema…" />
           </div>
         ) : (
-          <form className="importar" onSubmit={importar}>
+          <form className="importar" onSubmit={importar} noValidate>
             <label htmlFor="enlace-receta">Importar de una web</label>
             <div className="fila">
               <input
@@ -115,7 +124,7 @@ export default function Recetas() {
                 onChange={(e) => setEnlace(e.target.value)}
               />
               <button className="boton lima" type="submit" disabled={!enlace.trim() || guardando || !d.enLinea}>
-                {guardando ? '…' : 'Importar'}
+                {guardando ? 'Leyendo…' : 'Importar'}
               </button>
             </div>
           </form>
@@ -133,7 +142,7 @@ export default function Recetas() {
                 {dominio(imp.url)} · {imp.url}
               </span>
             ))}
-            <span className="nota-gris">Dile a Claude «importa las recetas pendientes de Mesa» y aparecerán aquí con sus fotos.</span>
+            <span className="nota-gris">Estas webs no se han podido leer solas. Dile a Claude «importa las recetas pendientes de Mesa» y las añade.</span>
           </div>
         ) : null}
 

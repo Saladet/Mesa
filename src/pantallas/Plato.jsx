@@ -163,6 +163,12 @@ export default function PantallaPlato({ comidaId, recetaId }) {
           </span>
         </div>
 
+        {(receta.etiquetas || []).includes('auto') ? (
+          <p className="nota-gris" style={{ margin: '-6px 0 0' }}>
+            Leída automáticamente de la web. Si algo no cuadra (cantidades o pasos), pedidle a Claude que la repase.
+          </p>
+        ) : null}
+
         {conflictos.map((r) => (
           <span key={r.id} className="conflicto">
             <Icono n="aviso" t={14} />

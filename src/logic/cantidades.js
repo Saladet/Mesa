@@ -18,6 +18,8 @@ const UNIDADES = {
   tarrina: ['tarrina', 'tarrinas'],
   rama: ['rama', 'ramas'],
   paquete: ['paquete', 'paquetes'],
+  vaso: ['vaso', 'vasos'],
+  taza: ['taza', 'tazas'],
 };
 
 // Unidades que en la lista de la compra no llevan cantidad (se compra el paquete).

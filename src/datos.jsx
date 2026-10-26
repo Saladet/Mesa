@@ -7,6 +7,7 @@ import { hoyISO, capital } from './logic/fechas.js';
 import { normalizar } from './logic/reglas.js';
 import { ordenarMenus, finDelMenu, diasDelMenu } from './logic/semanas.js';
 import { resumenNotas, mediasDe, ponerValoracion, quitarValoracion, buscarValoracion } from './logic/valoraciones.js';
+import { recetaDesdeWeb, mismaUrl } from './logic/importar.js';
 
 const Ctx = createContext(null);
 export function useDatos() {
@@ -584,11 +585,39 @@ export function ProveedorDatos({ children }) {
     return siguiente;
   }
 
+  // Pegar un enlace: se lee la receta de la web y se crea al momento. Si la web no trae los datos
+  // de la receta, queda pendiente para que Claude la importe a mano.
+  // Devuelve { estado: 'importada' | 'repetida' | 'pendiente', receta?, titulo?, avisos? }
   async function importarEnlace(url) {
     const d = ref.current;
-    const r = await supabase.from('importaciones').insert({ hogar_id: d.hogar.id, url, creada_por: yo?.id ?? null }).select().single();
-    if (r.error) throw r.error;
-    setDatos((x) => ({ ...x, importaciones: [...x.importaciones, r.data] }));
+    const repetida = d.recetas.find((r) => mismaUrl(r.url_origen, url));
+    if (repetida) return { estado: 'repetida', receta: repetida };
+    const ya = d.importaciones.find((i) => mismaUrl(i.url, url));
+    let imp = ya;
+    if (!imp) {
+      const r = await supabase.from('importaciones').insert({ hogar_id: d.hogar.id, url, creada_por: yo?.id ?? null }).select().single();
+      if (r.error) throw r.error;
+      imp = r.data;
+      setDatos((x) => ({ ...x, importaciones: [...x.importaciones, r.data] }));
+    }
+    let web = null;
+    try {
+      const { data, error } = await supabase.functions.invoke('leer-receta', { body: { url } });
+      if (!error && data?.ok) web = data.receta;
+    } catch (e) {
+      console.error(e);
+    }
+    if (!web) return { estado: 'pendiente' };
+    const { receta, ingredientes, sinCatalogo, llevaPescado } = recetaDesdeWeb(web, { hogarId: d.hogar.id, url, ingredientes: d.ingredientes });
+    const r = await supabase.rpc('crear_receta', { p_receta: receta, p_ingredientes: ingredientes });
+    if (r.error) {
+      console.error(r.error);
+      return { estado: 'pendiente' };
+    }
+    await supabase.from('importaciones').update({ estado: 'importada', receta_id: r.data }).eq('id', imp.id);
+    setDatos((x) => ({ ...x, importaciones: x.importaciones.filter((i) => i.id !== imp.id) }));
+    await cargar();
+    return { estado: 'importada', receta: { id: r.data }, titulo: receta.titulo, avisos: { sinCatalogo, llevaPescado } };
   }
 
   // ---- Hogar ----

@@ -131,7 +131,7 @@ export default function PantallaPlato({ comidaId, recetaId }) {
               <span>{tiempo(receta.tiempo_min)}</span>
             </span>
           ) : null}
-          <span className="pildora">Para {d.comensales}</span>
+          <span className="pildora">Para {d.comensalesTexto}</span>
           {receta.proteina && PROTEINAS[receta.proteina] ? <span className="pildora">{PROTEINAS[receta.proteina]}</span> : null}
           {receta.capricho ? <span className="pildora lima">Capricho</span> : null}
           {receta.especial ? (
@@ -211,7 +211,7 @@ export default function PantallaPlato({ comidaId, recetaId }) {
         <NotasAnteriores receta={receta} excluir={fechaValorar} />
 
         <section>
-          <h2 className="subtitulo">Ingredientes · para {d.comensales}</h2>
+          <h2 className="subtitulo">Ingredientes · para {d.comensalesTexto}</h2>
           {visibles.map((ri) => (
             <div key={ri.id} className="ingrediente">
               <span>{ri.texto_original}</span>

@@ -1,5 +1,5 @@
 // SQL para añadir un conjunto de recetas (y los ingredientes nuevos del catálogo).
-// Uso: node seed/sql-recetas.mjs <importadas|especiales> <hogar_id> <carpeta_salida>
+// Uso: node seed/sql-recetas.mjs <importadas|especiales|segunda-casa> <hogar_id> <carpeta_salida>
 // Escribe <conjunto>-1.sql (ingredientes) y <conjunto>-2.sql (recetas e ingredientes de cada receta).
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
@@ -7,23 +7,29 @@ import { join } from 'node:path';
 import { INGREDIENTES } from './datos.js';
 import * as importadas from './importadas.js';
 import * as especiales from './especiales.js';
+import * as segunda from './segunda-casa.js';
 
 const [conjunto, hogarId, salida] = process.argv.slice(2);
+const WEB = { origen: 'importada', raciones: 2, conFoto: true };
 const CONJUNTOS = {
-  importadas: { nuevos: importadas.INGREDIENTES_NUEVOS, recetas: importadas.IMPORTADAS },
-  especiales: { nuevos: especiales.INGREDIENTES_NUEVOS, recetas: especiales.ESPECIALES.map((r) => ({ ...r, especial: true })) },
+  importadas: { ...WEB, nuevos: importadas.INGREDIENTES_NUEVOS, recetas: importadas.IMPORTADAS },
+  especiales: { ...WEB, nuevos: especiales.INGREDIENTES_NUEVOS, recetas: especiales.ESPECIALES.map((r) => ({ ...r, especial: true })) },
+  // Las de casa: sin foto ni enlace, para 4 raciones de adulto
+  'segunda-casa': { origen: 'vuestra', raciones: 4, conFoto: false, nuevos: segunda.INGREDIENTES_NUEVOS, recetas: segunda.RECETAS },
 };
 if (!CONJUNTOS[conjunto] || !hogarId || !salida) {
-  console.error('Uso: node seed/sql-recetas.mjs <importadas|especiales> <hogar_id> <carpeta_salida>');
+  console.error('Uso: node seed/sql-recetas.mjs <importadas|especiales|segunda-casa> <hogar_id> <carpeta_salida>');
   process.exit(1);
 }
-const { nuevos: INGREDIENTES_NUEVOS, recetas: RECETAS } = CONJUNTOS[conjunto];
+const { nuevos: INGREDIENTES_NUEVOS, recetas: RECETAS, origen, raciones, conFoto } = CONJUNTOS[conjunto];
 const q = (v) => (v == null ? 'null' : `'${String(v).replace(/'/g, "''")}'`);
 const arr = (a) => (a && a.length ? `array[${a.map(q).join(',')}]::text[]` : `'{}'::text[]`);
 const json = (o) => `${q(JSON.stringify(o))}::jsonb`;
 const num = (n) => (n == null ? 'null' : String(n));
 
-const catalogo = new Map([...INGREDIENTES, ...importadas.INGREDIENTES_NUEVOS, ...especiales.INGREDIENTES_NUEVOS].map(([id, nombre]) => [id, nombre]));
+const catalogo = new Map(
+  [...INGREDIENTES, ...importadas.INGREDIENTES_NUEVOS, ...especiales.INGREDIENTES_NUEVOS, ...segunda.INGREDIENTES_NUEVOS].map(([id, nombre]) => [id, nombre]),
+);
 const errores = [];
 const slugs = new Set();
 for (const r of RECETAS) {
@@ -38,7 +44,7 @@ for (const r of RECETAS) {
   }
   const usados = new Set(r.pasos.flatMap((p) => p[2]));
   for (const [id] of r.ing) if (!usados.has(id)) errores.push(`${r.slug}: ${id} no aparece en ningún paso`);
-  if (!r.foto || !r.url) errores.push(`${r.slug}: falta foto o enlace`);
+  if (conFoto && (!r.foto || !r.url)) errores.push(`${r.slug}: falta foto o enlace`);
   if (r.especial && !(r.antes || []).length) errores.push(`${r.slug}: un especial necesita «antes de empezar»`);
 }
 if (errores.length) {
@@ -58,7 +64,7 @@ const p2 =
   recetas
     .map(
       (r) =>
-        `(${q(r.id)},${q(hogarId)},${q(r.titulo)},'importada',${q(r.url)},${q(r.foto)},${num(r.tiempo)},2,` +
+        `(${q(r.id)},${q(hogarId)},${q(r.titulo)},${q(origen)},${q(r.url)},${q(r.foto)},${num(r.tiempo)},${raciones},` +
         `${json(r.pasos.map(([texto, min, ingredientes]) => ({ texto, min: min || null, ingredientes })))},${json(r.paleta)},${arr(r.momentos)},${q(r.proteina)},${!!r.capricho},${!!r.especial},${arr(r.antes)})`,
     )
     .join(',\n') +

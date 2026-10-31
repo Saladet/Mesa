@@ -452,7 +452,7 @@ export default function Semana({ diaForzado, menuForzado }) {
             )}
             <h1 className="cab-titulo">{tituloSemana(menu, dias, hoy, orden)}</h1>
           </div>
-          <Avatares personas={otros} tam={34} borde="#1D3B2F" />
+          <Avatares personas={otros} tam={34} borde="var(--verde)" />
         </header>
         {menu ? (
           <div className="segmentado" role="group" aria-label="Cómo ver la semana">

@@ -129,6 +129,7 @@ export function reglasCompletas(reglas) {
     carne_max: reglas?.carne_max ?? 3,
     huevos_max: reglas?.huevos_max ?? 4,
     caprichos_max: reglas?.caprichos_max ?? 1,
+    pescado_min: reglas?.pescado_min ?? 0, // solo cuenta en las casas donde se come pescado
   };
 }
 
@@ -140,6 +141,12 @@ export function chipsSemana(cuenta, reglas, sinPescado) {
     texto: cuenta.legumbre >= r.legumbre_min ? `Legumbre ${cuenta.legumbre}` : `Legumbre ${cuenta.legumbre}/${r.legumbre_min}`,
     estado: cuenta.legumbre >= r.legumbre_min ? 'ok' : 'falta',
   });
+  if (!sinPescado && r.pescado_min > 0) {
+    chips.push({
+      texto: cuenta.pescado >= r.pescado_min ? `Pescado ${cuenta.pescado}` : `Pescado ${cuenta.pescado}/${r.pescado_min}`,
+      estado: cuenta.pescado >= r.pescado_min ? 'ok' : 'falta',
+    });
+  }
   chips.push({ texto: `Carne ${cuenta.carne}/${r.carne_max}`, estado: cuenta.carne > r.carne_max ? 'pasa' : 'normal' });
   chips.push({ texto: `Huevos ${cuenta.huevo}/${r.huevos_max}`, estado: cuenta.huevo > r.huevos_max ? 'pasa' : 'normal' });
   if (sinPescado) chips.push({ texto: cuenta.pescado ? 'Lleva pescado' : 'Sin pescado', estado: cuenta.pescado ? 'pasa' : 'normal' });

@@ -1,0 +1,30 @@
+{
+  "name": "Mesa",
+  "short_name": "Mesa",
+  "description": "Menú semanal, lista de la compra compartida y recetas de casa.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#18364F",
+  "theme_color": "#18364F",
+  "icons": [
+    {
+      "src": "icons/icon-192-mar.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512-mar.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-512-mar.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

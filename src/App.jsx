@@ -3,6 +3,7 @@ import { useDatos, CLAVE_INVITACION } from './datos.jsx';
 import { useRuta, ir } from './ruta.js';
 import { hoyISO } from './logic/fechas.js';
 import { menuDeCompra } from './logic/semanas.js';
+import { aplicarTema, marcaDe, temaGuardado } from './tema.js';
 import { Dibujo } from './ui/Portada.jsx';
 import Tabs from './ui/Tabs.jsx';
 import Entrar from './pantallas/Entrar.jsx';
@@ -18,7 +19,7 @@ import Hogar from './pantallas/Hogar.jsx';
 function Cargando() {
   return (
     <div className="cargando" role="status" aria-label="Cargando">
-      <Dibujo paleta={{ base: '#C9EE6B', d1: '#1D3B2F', d2: '#E9843B' }} tam={64} grande={false} />
+      <Dibujo paleta={marcaDe(temaGuardado())} tam={64} grande={false} />
     </div>
   );
 }
@@ -38,6 +39,12 @@ const CON_TABS = new Set(['semana', 'lista', 'recetas', 'hogar', 'cambiar']);
 export default function App() {
   const ruta = useRuta();
   const d = useDatos();
+  const tema = d.hogar?.tema;
+
+  // Los colores de la casa
+  useEffect(() => {
+    if (tema) aplicarTema(tema);
+  }, [tema]);
 
   // Un enlace de invitación se guarda hasta que haya sesión
   useEffect(() => {

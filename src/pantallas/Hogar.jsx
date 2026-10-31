@@ -7,6 +7,9 @@ import { interpretar } from '../logic/restricciones.js';
 import { GRUPOS, NIVELES, nombreRestriccion, reglasCompletas, esBloqueante } from '../logic/reglas.js';
 import { mensajeError } from '../supabase.js';
 import { VERSION } from '../config.js';
+import { esPeque, RACION_ADULTO, RACION_PEQUE } from '../logic/raciones.js';
+import { TEMAS, TEMA_INICIAL } from '../tema.js';
+import { Dibujo } from '../ui/Portada.jsx';
 
 const DIAS_COMPRA = [
   [1, 'Lunes'],
@@ -24,6 +27,7 @@ const COMIDAS = [
 ];
 const REGLAS = [
   ['legumbre_min', 'Legumbre', 'Platos a la semana, como mínimo', 0, 14],
+  ['pescado_min', 'Pescado', 'Platos a la semana, como mínimo', 0, 14],
   ['carne_max', 'Carne', 'Platos a la semana, como máximo', 0, 14],
   ['huevos_max', 'Huevo', 'Platos con huevo a la semana, como máximo', 0, 14],
   ['caprichos_max', 'Caprichos', 'A la semana, como máximo', 0, 7],
@@ -199,6 +203,7 @@ function TarjetaPersona({ persona, d }) {
   const suyas = d.restricciones.filter((r) => r.persona_id === persona.id);
   const grupos = ORDEN_NIVEL.map((n) => [n, suyas.filter((r) => r.nivel === n)]).filter(([, rs]) => rs.length);
   const esYo = persona.id === d.yo?.id;
+  const peque = esPeque(persona);
   return (
     <article className="persona">
       <div className="persona-cab">
@@ -206,6 +211,26 @@ function TarjetaPersona({ persona, d }) {
         <span className="persona-nombre">{persona.nombre}</span>
         {esYo ? <span className="tu">Tú</span> : null}
       </div>
+      {!persona.user_id || peque ? (
+        <div className="niveles" role="group" aria-label={`Cuánto come ${persona.nombre}`}>
+          <button
+            type="button"
+            className={`chip peq${peque ? '' : ' on'}`}
+            aria-pressed={!peque}
+            onClick={() => peque && d.acciones.cambiarRacion(persona, RACION_ADULTO)}
+          >
+            Adulto
+          </button>
+          <button
+            type="button"
+            className={`chip peq${peque ? ' on' : ''}`}
+            aria-pressed={peque}
+            onClick={() => !peque && d.acciones.cambiarRacion(persona, RACION_PEQUE)}
+          >
+            Peque · media ración
+          </button>
+        </div>
+      ) : null}
       <div className="separador" aria-hidden="true" />
       {grupos.length ? (
         grupos.map(([nivel, rs]) => (
@@ -225,7 +250,7 @@ function TarjetaPersona({ persona, d }) {
         </span>
       )}
       <AnadirRestriccion persona={persona} d={d} />
-      {!persona.user_id ? <Invitar persona={persona} d={d} /> : null}
+      {!persona.user_id && !peque ? <Invitar persona={persona} d={d} /> : null}
       {!persona.user_id && !esYo ? (
         <button
           type="button"
@@ -280,6 +305,39 @@ function AnadirPersona({ d }) {
   );
 }
 
+function Colores({ d }) {
+  const actual = TEMAS[d.hogar?.tema] ? d.hogar.tema : TEMA_INICIAL;
+  return (
+    <fieldset className="grupo">
+      <legend className="etiqueta-seccion" style={{ margin: '0 0 10px' }}>
+        Colores de la app
+      </legend>
+      <div className="temas">
+        {Object.entries(TEMAS).map(([id, t]) => (
+          <button
+            key={id}
+            type="button"
+            className={`tema${actual === id ? ' on' : ''}`}
+            aria-pressed={actual === id}
+            onClick={() => actual !== id && d.acciones.actualizarHogar({ tema: id })}
+          >
+            <span className="tema-muestra" style={{ background: t.color }} aria-hidden="true">
+              <Dibujo paleta={t.marca} tam={34} grande={false} />
+            </span>
+            <span className="tema-textos">
+              <b>{t.nombre}</b>
+              <span>{t.descripcion}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <span className="nota-gris" style={{ display: 'block', marginTop: 8 }}>
+        Se cambian en los móviles de toda la casa.
+      </span>
+    </fieldset>
+  );
+}
+
 export default function Hogar() {
   const d = useDatos();
   const hogar = d.hogar;
@@ -287,6 +345,8 @@ export default function Hogar() {
   const comidas = hogar?.comidas || ['comida', 'cena'];
   const sinPescado = d.restricciones.filter((r) => r.tipo === 'grupo' && r.valor === 'pescado' && esBloqueante(r));
   const quienesSinPescado = [...new Set(sinPescado.map((r) => d.personasMap.get(r.persona_id)?.nombre).filter(Boolean))];
+  // El mínimo de pescado solo tiene sentido si en la casa se come
+  const reglasVisibles = REGLAS.filter(([clave]) => clave !== 'pescado_min' || !quienesSinPescado.length);
 
   function alternarComida(id) {
     const s = new Set(comidas);
@@ -395,7 +455,7 @@ export default function Hogar() {
           <h2 className="etiqueta-seccion" style={{ margin: '0 0 2px' }}>
             Reglas de la semana
           </h2>
-          {REGLAS.map(([clave, nombre, ayuda, min, max]) => (
+          {reglasVisibles.map(([clave, nombre, ayuda, min, max]) => (
             <div key={clave} className="regla">
               <span className="regla-textos">
                 <b>{nombre}</b>
@@ -424,6 +484,8 @@ export default function Hogar() {
             </div>
           ) : null}
         </section>
+
+        <Colores d={d} />
 
         <section className="cuenta">
           <span>

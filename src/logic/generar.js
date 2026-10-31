@@ -74,6 +74,8 @@ export function generarSemana({
     blandas.set(receta.id, conf.length);
   }
   const fres = new Map(permitidas.map((x) => [x.id, frescura(x, ingMap)]));
+  // Mínimo de pescado: solo si hay platos de pescado que se puedan poner (en una casa sin pescado no cuenta)
+  const pescadoMin = permitidas.some((x) => x.proteina === 'pescado' && !x.capricho && !x.especial) ? r.pescado_min : 0;
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(inicio, i));
   const finde = dias.map((f, i) => ({ f, i })).filter(({ f }) => [5, 6, 0].includes(diaSemana(f))).map(({ i }) => i);
   const caprichos = permitidas.filter((x) => x.capricho && !x.especial);
@@ -94,6 +96,7 @@ export function generarSemana({
     huevo: Math.min(r.huevos_max, 3),
     otro: Math.max(1, Math.round(totalHuecos / 7)),
   };
+  if (pescadoMin > 0) objetivo.pescado = pescadoMin;
   // Lácteos y platos de verdura cuentan juntos ("otro")
   const grupo = (x) => (x.proteina === 'lacteo' ? 'otro' : x.proteina);
 
@@ -181,6 +184,7 @@ export function generarSemana({
         }
         const quedan = totalHuecos - hechos + 1; // huecos principales que faltan, contando este
         const faltaLegumbre = r.legumbre_min - cuenta.legumbre;
+        const faltaPescado = pescadoMin - cuenta.pescado;
         let elegida = null;
         let mejorP = -Infinity;
         for (const x of permitidas) {
@@ -193,6 +197,7 @@ export function generarSemana({
             if (x.id === desayunoAyer) p -= 3;
           } else {
             if (x.proteina === 'legumbre' && faltaLegumbre > 0 && faltaLegumbre >= quedan - 1) p += 8;
+            if (x.proteina === 'pescado' && faltaPescado > 0 && faltaPescado >= quedan - 1) p += 8;
             const g = grupo(x);
             if (objetivo[g] != null) p += cuenta[g] < objetivo[g] ? 1.2 : -2.5;
             if (recientes.has(x.id)) p -= 2.5;
@@ -229,8 +234,9 @@ export function generarSemana({
         }
       }
     }
-    const valida = !vacios && cuenta.legumbre >= r.legumbre_min;
+    const valida = !vacios && cuenta.legumbre >= r.legumbre_min && cuenta.pescado >= pescadoMin;
     if (cuenta.legumbre < r.legumbre_min) puntos -= 20 * (r.legumbre_min - cuenta.legumbre);
+    if (cuenta.pescado < pescadoMin) puntos -= 20 * (pescadoMin - cuenta.pescado);
     return { slots, puntos, valida };
   }
 }
@@ -266,6 +272,8 @@ export function alternativas({
   const enSemana = new Set(otras.map((x) => x.id));
   const base = contarSemana(otras);
   const desfase = diasEntre(inicio, fecha);
+  const comePescado = recetas.some((x) => x.proteina === 'pescado' && !conflictosReceta(x, restricciones, ingMap).some(esBloqueante));
+  const pescadoMin = comePescado ? r.pescado_min : 0;
   const out = [];
   for (const x of recetas) {
     if (actual && x.id === actual.id) continue;
@@ -281,6 +289,7 @@ export function alternativas({
       if (x.capricho) c.capricho += 1;
       if (c.carne > r.carne_max || c.huevo > r.huevos_max || c.capricho > r.caprichos_max) continue;
       if (c.legumbre < r.legumbre_min) rompe = 'legumbre';
+      else if (c.pescado < pescadoMin) rompe = 'pescado';
     }
     if (motivos.has('largo')) {
       const limite = Math.min(actual?.tiempo_min ?? 999, 30);
@@ -312,7 +321,7 @@ export function alternativas({
 
     let razon = null;
     if (noGusto) razon = 'No os convenció';
-    else if (rompe) razon = 'Os quedaríais cortos de legumbre';
+    else if (rompe) razon = `Os quedaríais cortos de ${rompe}`;
     else if (nuevos === 0) razon = 'No hay que comprar nada más';
     else if (nuevos === 1) razon = 'Solo hay que comprar 1 cosa';
     else if (nuevos <= 3) razon = `Solo hay que comprar ${nuevos} cosas`;

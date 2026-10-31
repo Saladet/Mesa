@@ -6,6 +6,7 @@ import { enumerar, minuscula } from '../ui/textos.jsx';
 import { hoyISO, fechaCorta } from '../logic/fechas.js';
 import { menusVivos, menuDeCompra, diasDelMenu } from '../logic/semanas.js';
 import { SECCIONES, ordenSeccion } from '../logic/lista.js';
+import { esPeque } from '../logic/raciones.js';
 
 const memoria = { menuId: null };
 
@@ -113,7 +114,7 @@ export default function Lista() {
     .map((x) => d.personasMap.get(x.marcado_por))
     .filter(Boolean);
   const activo = recientes[0] || null;
-  const demas = d.personas.filter((p) => p.id !== d.yo?.id);
+  const demas = d.personas.filter((p) => p.id !== d.yo?.id && !esPeque(p));
 
   let estado;
   if (total && hechos === total) estado = '¡Todo comprado!';

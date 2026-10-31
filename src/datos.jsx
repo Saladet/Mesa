@@ -5,7 +5,9 @@ import { construirLista, planActualizacion, claveManual } from './logic/lista.js
 import { generarSemana, siguienteInicio } from './logic/generar.js';
 import { hoyISO, capital } from './logic/fechas.js';
 import { normalizar } from './logic/reglas.js';
-import { ordenarMenus, finDelMenu, diasDelMenu } from './logic/semanas.js';
+import { ordenarMenus, finDelMenu, diasDelMenu, menusVivos } from './logic/semanas.js';
+import { comensalesDe, textoComensales } from './logic/raciones.js';
+import { TEMA_INICIAL } from './tema.js';
 import { resumenNotas, mediasDe, ponerValoracion, quitarValoracion, buscarValoracion } from './logic/valoraciones.js';
 import { recetaDesdeWeb, mismaUrl } from './logic/importar.js';
 
@@ -125,7 +127,7 @@ export function ProveedorDatos({ children }) {
         const r = await supabase.rpc('aceptar_invitacion', { p_token: token });
         if (!r.error) {
           localStorage.removeItem(CLAVE_INVITACION);
-          if (r.data) avisar('Ya estás dentro. ¡Bienvenida a la mesa!');
+          if (r.data) avisar('Ya estás dentro. ¡A la mesa!');
           else avisar('Esa invitación ya se usó o no es válida.', 'error');
         }
       }
@@ -303,21 +305,22 @@ export function ProveedorDatos({ children }) {
   const notas = useMemo(() => resumenNotas(datos.valoraciones), [datos.valoraciones]);
   const medias = useMemo(() => mediasDe(notas), [notas]);
   const yo = datos.personas.find((p) => p.user_id === uid) || null;
-  const comensales = Math.max(1, datos.personas.length);
+  const comensales = comensalesDe(datos.personas);
+  const comensalesTexto = textoComensales(datos.personas);
 
   function actualizarLocal(clave, id, cambios) {
     setDatos((d) => ({ ...d, [clave]: d[clave].map((x) => (x.id === id ? { ...x, ...cambios } : x)) }));
   }
 
   // ---- Lista de la compra ----
-  async function regenerarLista(menu) {
+  async function regenerarLista(menu, personas = ref.current.personas) {
     const d = ref.current;
     const [comidas, existentes] = await Promise.all([
       supabase.from('menu_comidas').select('*').eq('menu_id', menu.id).then(comprobar),
       supabase.from('lista_items').select('*').eq('menu_id', menu.id).then(comprobar),
     ]);
     const { ingMap, recetasMap } = mapasDe(d);
-    const nuevas = construirLista({ inicio: menu.semana_inicio, comidas, recetasMap, ingMap, personas: Math.max(1, d.personas.length) });
+    const nuevas = construirLista({ inicio: menu.semana_inicio, comidas, recetasMap, ingMap, personas: comensalesDe(personas) });
     const plan = planActualizacion(nuevas, existentes);
     const porId = new Map(existentes.map((e) => [e.id, e]));
     const borrar = plan.borrar.filter((id) => !porId.get(id)?.marcado);
@@ -671,6 +674,7 @@ export function ProveedorDatos({ children }) {
     const r = await supabase.from('personas').insert({ hogar_id: d.hogar.id, nombre: limpio, color, orden }).select().single();
     if (r.error) throw r.error;
     setDatos((x) => ({ ...x, personas: [...x.personas, r.data] }));
+    await rehacerListasVivas([...d.personas, r.data]);
   }
 
   async function quitarPersona(persona) {
@@ -683,6 +687,32 @@ export function ProveedorDatos({ children }) {
     if (r.error) {
       avisar(mensajeError(r.error), 'error');
       cargar();
+      return;
+    }
+    await rehacerListasVivas(ref.current.personas.filter((p) => p.id !== persona.id));
+  }
+
+  // Adulto (1) o peque (media ración)
+  async function cambiarRacion(persona, racion) {
+    const personas = ref.current.personas.map((p) => (p.id === persona.id ? { ...p, racion } : p));
+    actualizarLocal('personas', persona.id, { racion });
+    const r = await supabase.from('personas').update({ racion }).eq('id', persona.id);
+    if (r.error) {
+      avisar(mensajeError(r.error), 'error');
+      cargar();
+      return;
+    }
+    await rehacerListasVivas(personas);
+  }
+
+  // Si cambia quién come, las listas que aún sirven se recalculan (lo marcado se conserva)
+  async function rehacerListasVivas(personas) {
+    const d = ref.current;
+    try {
+      for (const menu of menusVivos(d.menus, d.comidas, hoyISO())) await regenerarLista(menu, personas);
+    } catch (e) {
+      console.error(e);
+      avisar('La lista de la compra no se ha podido actualizar. Abre la app otra vez con conexión.', 'error');
     }
   }
 
@@ -693,7 +723,10 @@ export function ProveedorDatos({ children }) {
       comprobar(await supabase.from('personas').update({ invitacion: token }).eq('id', persona.id));
       actualizarLocal('personas', persona.id, { invitacion: token });
     }
-    return `${window.location.origin}${window.location.pathname}#/unirse/${token}`;
+    // El enlace lleva los colores de la casa, para que la pantalla de entrada ya salga con ellos
+    const tema = ref.current.hogar?.tema;
+    const extra = tema && tema !== TEMA_INICIAL ? `?tema=${tema}` : '';
+    return `${window.location.origin}${window.location.pathname}#/unirse/${token}${extra}`;
   }
 
   // ---- Cuenta ----
@@ -731,6 +764,7 @@ export function ProveedorDatos({ children }) {
     aviso,
     avisar,
     comensales,
+    comensalesTexto,
     ...datos,
     ...mapas,
     notas,
@@ -755,6 +789,7 @@ export function ProveedorDatos({ children }) {
       quitarRestriccion,
       anadirPersona,
       quitarPersona,
+      cambiarRacion,
       invitar,
       entrar,
       crearCuenta,

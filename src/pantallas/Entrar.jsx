@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { useDatos } from '../datos.jsx';
 import { mensajeError } from '../supabase.js';
 import { Dibujo } from '../ui/Portada.jsx';
-
-const PALETA_MARCA = { base: '#C9EE6B', d1: '#1D3B2F', d2: '#E9843B' };
+import { marcaDe, temaGuardado } from '../tema.js';
 
 export function Marca({ texto }) {
   return (
     <div className="marca">
-      <Dibujo paleta={PALETA_MARCA} tam={72} grande={false} />
+      <Dibujo paleta={marcaDe(temaGuardado())} tam={72} grande={false} />
       <h1>Mesa</h1>
       {texto ? <p>{texto}</p> : null}
     </div>

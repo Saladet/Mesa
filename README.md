@@ -11,7 +11,8 @@ El menú de la semana, la lista de la compra compartida y las recetas de casa.
 - **Lista**: se monta sola con los ingredientes de la semana, agrupada por secciones del súper. Lo que marca uno lo ve el otro al momento. Avisa de lo que hay que congelar al llegar.
 - **Recetas**: el recetario, con modo cocina paso a paso y temporizadores. Pegando el enlace de una receta de una web, se lee sola y se añade (foto, ingredientes, pasos y temporizadores).
 - **Valoraciones**: cada uno puntúa los platos (1-5 estrellas) y deja un comentario. Lo de la última vez sale en el plato y al empezar a cocinar; lo que gustó aparece más en las semanas y lo de «No lo repetimos» deja de salir solo.
-- **Hogar**: quién come, qué no come cada uno (datos estructurados, no texto libre), día de compra y reglas (legumbre, carne, huevo, caprichos).
+- **Hogar**: quién come (los peques cuentan media ración en la lista y en las recetas), qué no come cada uno (datos estructurados, no texto libre), día de compra, reglas (legumbre, pescado si en la casa se come, carne, huevo, caprichos) y colores de la app («Huerta» o «Mar»).
+- **Varias casas**: cada casa tiene su menú, su lista, su recetario y sus colores; con el mismo enlace, cada uno solo ve la suya.
 
 ## Cómo está hecha
 
@@ -26,6 +27,8 @@ npm install
 npm run dev
 ```
 
-`seed/` contiene el recetario (inicial, importado y especiales) y los scripts que generan el SQL de cada carga (`seed/sql.mjs`, `seed/sql-recetas.mjs`).
+`seed/` contiene el recetario (inicial, importado, especiales y las recetas propias de la segunda casa, con pescado y para 4 raciones) y los scripts que generan el SQL de cada carga (`seed/sql.mjs`, `seed/sql-recetas.mjs`).
+
+Los colores de cada casa están en `src/tema.js` (variables en `src/estilos.css`, iconos y manifiesto con sufijo `-mar` en `public/`).
 
 `supabase/functions/leer-receta/` es la función que lee las recetas de las webs (solo responde a usuarios con sesión y solo a webs públicas). La lógica que convierte lo leído en una receta de Mesa está en `src/logic/importar.js`.

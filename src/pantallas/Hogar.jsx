@@ -7,6 +7,7 @@ import { interpretar } from '../logic/restricciones.js';
 import { GRUPOS, NIVELES, nombreRestriccion, reglasCompletas, esBloqueante } from '../logic/reglas.js';
 import { mensajeError } from '../supabase.js';
 import { VERSION } from '../config.js';
+import { DIAS_POSTRE } from '../logic/postres.js';
 
 const DIAS_COMPRA = [
   [1, 'Lunes'],
@@ -388,6 +389,29 @@ export default function Hogar() {
           </div>
           <span className="nota-gris">
             Una receta más elaborada a la semana. Dos días antes te avisa de lo que hay que preparar. Se aplica a las semanas nuevas; en la semana entera puedes moverlo a otro día.
+          </span>
+        </div>
+
+        <div className="bloque">
+          <label htmlFor="dia-postre" className="etiqueta-seccion" style={{ margin: 0 }}>
+            Postre de la semana
+          </label>
+          <select
+            id="dia-postre"
+            className="selector"
+            value={hogar?.dia_postre ?? 'no'}
+            onChange={(e) => d.acciones.actualizarHogar({ dia_postre: e.target.value === 'no' ? null : Number(e.target.value) })}
+          >
+            {DIAS_COMPRA.map(([v, t]) => (
+              <option key={v} value={v}>
+                {t}
+              </option>
+            ))}
+            <option value="no">Ninguno</option>
+          </select>
+          <span className="nota-gris">
+            Una tanda de postre sano que os dura {DIAS_POSTRE} días más (la compra la trae entera). Alterna uno sin azúcar añadido y otro con poco: como mucho 2
+            cucharaditas por ración. Se aplica a las semanas nuevas; desde el postre puedes cambiarlo de día.
           </span>
         </div>
 

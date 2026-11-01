@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { factorRaciones } from '../logic/postres.js';
 import { useDatos } from '../datos.jsx';
 import Icono from '../ui/Icono.jsx';
 import { Resaltado } from '../ui/textos.jsx';
@@ -135,7 +136,7 @@ export default function Cocinar({ recetaId, comidaId }) {
   }
 
   const paso = pasos[i];
-  const factor = d.comensales / (receta.raciones || 2);
+  const factor = factorRaciones(receta, d.comensales);
   const delPaso = (paso?.ingredientes || [])
     .map((id) => (receta.receta_ingredientes || []).find((ri) => ri.ingrediente_id === id))
     .filter(Boolean)

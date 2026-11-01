@@ -2,6 +2,7 @@
 import { conflictosReceta, esBloqueante, contarSemana, reglasCompletas } from './reglas.js';
 import { sumarDias, diaSemana, diasEntre } from './fechas.js';
 import { MEDIA_MINIMA } from './valoraciones.js';
+import { esPostre, nivelAzucar } from './postres.js';
 
 export const TIPOS = ['desayuno', 'comida', 'cena'];
 
@@ -56,7 +57,8 @@ export function generarSemana({
   recientes = new Set(),
   medias = new Map(),
   especial = null, // { dia: 0-6 (0 = domingo), tipo: 'comida' | 'cena' } o null
-  ultimoUso = new Map(), // receta_id -> última fecha en la que salió (para rotar los especiales)
+  ultimoUso = new Map(), // receta_id -> última fecha en la que salió (para rotar los especiales y los postres)
+  postre = null, // { dia: 0-6 (0 = domingo) } o null: el día en que se hace el postre de la semana
   intentos = 60,
   semilla = Date.now(),
 }) {
@@ -107,11 +109,18 @@ export function generarSemana({
       if (validas.length >= 6) break;
     }
   }
+  let elegidos = mejor ? mejor.slots : [];
   if (validas.length) {
     validas.sort((a, b) => b.puntos - a.puntos);
-    return validas[Math.floor(azar() * Math.min(3, validas.length))].slots;
+    elegidos = validas[Math.floor(azar() * Math.min(3, validas.length))].slots;
   }
-  return mejor ? mejor.slots : [];
+  // El postre va aparte (con su propio azar), así el resto de la semana sale igual que sin él
+  if (postre && postre.dia != null) {
+    const fecha = dias.find((f) => diaSemana(f) === postre.dia);
+    const x = fecha ? elegirPostre({ recetas, ingMap, restricciones, medias, ultimoUso, inicio, semilla }) : null;
+    if (x) elegidos = [...elegidos, { fecha, tipo: 'postre', receta_id: x.id }];
+  }
+  return elegidos;
 
   function intentar() {
     const cuenta = { legumbre: 0, carne: 0, huevo: 0, capricho: 0, pescado: 0, otro: 0 };
@@ -236,6 +245,45 @@ export function generarSemana({
 }
 
 /**
+ * El postre de la semana. Solo los revisados (con etiqueta de azúcar) salen solos.
+ * Se alterna uno sin azúcar añadido y otro con poco; lo que salió hace poco espera su turno
+ * y lo que os gustó vuelve antes.
+ */
+export function elegirPostre({ recetas, ingMap, restricciones, medias = new Map(), ultimoUso = new Map(), inicio, semilla = Date.now() }) {
+  const azar = azarCon(`${semilla}|postre`);
+  // El último postre que salió antes de esta semana dice qué toca ahora
+  let ultimo = null;
+  for (const x of recetas) {
+    const f = esPostre(x) ? ultimoUso.get(x.id) : null;
+    if (f && f < inicio && (!ultimo || f > ultimo.f)) ultimo = { f, x };
+  }
+  const toca = ultimo && nivelAzucar(ultimo.x) === 'sin-azucar' ? 'poco-azucar' : 'sin-azucar';
+  let elegido = null;
+  let mejorP = -Infinity;
+  for (const x of recetas) {
+    if (!esPostre(x) || !nivelAzucar(x)) continue;
+    const conf = conflictosReceta(x, restricciones, ingMap);
+    if (conf.some(esBloqueante)) continue;
+    const media = medias.get(x.id);
+    if (media != null && media < MEDIA_MINIMA) continue;
+    let p = azar() * 3;
+    if (nivelAzucar(x) === toca) p += 8;
+    if (media != null) p += (media - 3) * 0.8;
+    const f = ultimoUso.get(x.id);
+    if (f && f < inicio) {
+      const semanas = diasEntre(f, inicio) / 7;
+      if (semanas < 10) p -= (10 - semanas) * 1.2;
+    }
+    p -= 2 * conf.length;
+    if (p > mejorP) {
+      mejorP = p;
+      elegido = x;
+    }
+  }
+  return elegido;
+}
+
+/**
  * Alternativas para un hueco del menú, de mejor a peor.
  * motivos: Set con 'apetece' | 'largo' | 'falta' | 'proteina'
  */
@@ -259,8 +307,9 @@ export function alternativas({
   const r = reglasCompletas(reglas);
   const azar = azarCon(semilla);
   const jitter = new Map(recetas.map((x) => [x.id, azar()]));
+  const esHuecoPostre = tipo === 'postre';
   const otras = comidasMenu
-    .filter((c) => !(c.fecha === fecha && c.tipo === tipo) && c.tipo !== 'desayuno')
+    .filter((c) => !(c.fecha === fecha && c.tipo === tipo) && c.tipo !== 'desayuno' && c.tipo !== 'postre')
     .map((c) => recetasMap.get(c.receta_id))
     .filter(Boolean);
   const enSemana = new Set(otras.map((x) => x.id));
@@ -275,7 +324,7 @@ export function alternativas({
     const conf = conflictosReceta(x, restricciones, ingMap);
     if (conf.some(esBloqueante)) continue;
     let rompe = null;
-    if (tipo !== 'desayuno') {
+    if (tipo !== 'desayuno' && !esHuecoPostre) {
       const c = { ...base };
       if (c[x.proteina] != null) c[x.proteina] += 1;
       if (x.capricho) c.capricho += 1;
@@ -306,12 +355,15 @@ export function alternativas({
     if (media != null) p += (media - 3) * 0.6;
     if (noGusto) p -= 4;
     if (huecoEspecial && x.especial) p += 4;
+    const sinRevisar = esHuecoPostre && !nivelAzucar(x);
+    if (sinRevisar) p -= 3; // postres sin la etiqueta de azúcar: se pueden elegir, pero van detrás
     const f = frescura(x, ingMap);
     if (f < 99 && desfase > f) p -= 2;
     if (motivos.has('largo')) p += (30 - (x.tiempo_min ?? 30)) / 15;
 
     let razon = null;
     if (noGusto) razon = 'No os convenció';
+    else if (sinRevisar) razon = 'Azúcar sin revisar';
     else if (rompe) razon = 'Os quedaríais cortos de legumbre';
     else if (nuevos === 0) razon = 'No hay que comprar nada más';
     else if (nuevos === 1) razon = 'Solo hay que comprar 1 cosa';

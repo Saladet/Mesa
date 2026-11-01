@@ -83,9 +83,11 @@ export function ultimosComentarios(valoraciones, recetaId, antesDe) {
 }
 
 // ¿Ya os lo habéis comido? La comida cuenta a partir de las 16:00 y la cena a partir de las 22:00.
+// El postre se hace ese día y se come los siguientes: cuenta desde el día después.
 export function yaComido(comida, hoy, hora) {
   if (comida.fecha < hoy) return true;
   if (comida.fecha > hoy) return false;
+  if (comida.tipo === 'postre') return false;
   if (comida.tipo === 'desayuno') return hora >= 11;
   if (comida.tipo === 'comida') return hora >= 16;
   return hora >= 22;

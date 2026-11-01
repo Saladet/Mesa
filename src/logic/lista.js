@@ -2,6 +2,7 @@
 import { cantidadCompra } from './cantidades.js';
 import { diasEntre, nombreDia, listaDias } from './fechas.js';
 import { normalizar } from './reglas.js';
+import { factorRaciones } from './postres.js';
 
 export const SECCIONES = [
   'Frutería y verdura',
@@ -36,7 +37,7 @@ function unico(arr) {
  * comidas: [{ fecha, receta_id }] del menú
  * recetasMap: Map id -> receta (con receta_ingredientes)
  * ingMap: Map id -> ingrediente
- * factor: personas / raciones
+ * factor: personas / raciones (el postre es una tanda para varios días: ver factorRaciones)
  */
 export function construirLista({ inicio, comidas, recetasMap, ingMap, personas = 2 }) {
   const items = new Map();
@@ -44,8 +45,9 @@ export function construirLista({ inicio, comidas, recetasMap, ingMap, personas =
     if (!comida.receta_id) continue;
     const receta = recetasMap.get(comida.receta_id);
     if (!receta) continue;
-    const factor = personas / (receta.raciones || 2);
+    const factor = factorRaciones(receta, personas);
     const desfase = diasEntre(inicio, comida.fecha);
+    const esDePostre = comida.tipo === 'postre';
     for (const ri of receta.receta_ingredientes || []) {
       const ing = ri.ingrediente_id ? ingMap.get(ri.ingrediente_id) : null;
       const clave = ing ? ing.id : `txt:${normalizar(ri.texto_original)}`;
@@ -61,6 +63,7 @@ export function construirLista({ inicio, comidas, recetasMap, ingMap, personas =
           cantidades: new Map(),
           recetas: new Set(),
           usos: [],
+          soloPostre: true,
         };
         items.set(clave, a);
       }
@@ -70,6 +73,7 @@ export function construirLista({ inicio, comidas, recetasMap, ingMap, personas =
       }
       a.recetas.add(receta.id);
       a.usos.push({ desfase, fecha: comida.fecha });
+      if (!esDePostre) a.soloPostre = false;
     }
   }
 
@@ -99,6 +103,7 @@ export function construirLista({ inicio, comidas, recetasMap, ingMap, personas =
       }
     }
     if (!nota && !basico && a.recetas.size > 1) nota = `Para ${a.recetas.size} recetas`;
+    if (!nota && !basico && a.soloPostre) nota = 'Para el postre';
     filas.push({
       clave: a.clave,
       ingrediente_id: a.ingrediente_id,

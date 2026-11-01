@@ -22,6 +22,7 @@ const TRAZOS = {
   pausa: <path d="M9 6v12M15 6v12" />,
   salir: <><path d="M14 4h5v16h-5" /><path d="M10 8l-4 4 4 4M6 12h10" /></>,
   mover: <><path d="M12 3.5v17M3.5 12h17" /><path d="m9 6.5 3-3 3 3M9 17.5l3 3 3-3M6.5 9l-3 3 3 3M17.5 9l3 3-3 3" /></>,
+  postre: <><path d="M4 11.5h16l-1.8 7a2 2 0 0 1-1.9 1.5H7.7a2 2 0 0 1-1.9-1.5z" /><path d="M7.2 11.5a4.8 4.8 0 0 1 9.6 0" /><circle cx="12" cy="4.8" r="1.6" /></>,
 };
 
 export default function Icono({ n, t = 20, className = '' }) {

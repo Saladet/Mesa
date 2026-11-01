@@ -7,6 +7,7 @@ import { normalizar, conflictosReceta, esBloqueante } from '../logic/reglas.js';
 import { mensajeError } from '../supabase.js';
 import { formatoMedia } from '../logic/valoraciones.js';
 import { ir } from '../ruta.js';
+import { esPostre, textoAzucar } from '../logic/postres.js';
 
 const memoria = { filtro: 'todas' };
 
@@ -23,11 +24,16 @@ const FILTROS = [
   ['caprichos', 'Caprichos', (r) => r.capricho],
   ['probadas', 'Probadas', (r, nota) => r.veces_cocinada > 0 || !!nota],
   ['desayunos', 'Desayunos', (r) => (r.momentos || []).includes('desayuno')],
+  ['postres', 'Postres', (r) => esPostre(r)],
 ];
+
+// Recetas que solo son de un momento aparte (desayuno o postre): solo salen en su filtro
+const SOLO_EN_SU_FILTRO = { desayuno: 'desayunos', postre: 'postres' };
 
 function metaFicha(r, nota) {
   const partes = [];
   if (r.especial) partes.push('Especial');
+  if (esPostre(r)) partes.push(textoAzucar(r) || 'Azúcar sin revisar');
   if (nota?.media != null) partes.push(`★ ${formatoMedia(nota.media)}`);
   if (r.veces_cocinada > 0) partes.push(`Hecha ${veces(r.veces_cocinada)}`);
   else if (nota) partes.push('Probada');
@@ -49,9 +55,14 @@ export default function Recetas() {
   const regla = FILTROS.find((f) => f[0] === filtro) || FILTROS[0];
   const q = normalizar(busqueda);
   const hayDesayunos = d.recetas.some((r) => (r.momentos || []).includes('desayuno'));
+  const hayPostres = d.recetas.some(esPostre);
   const visibles = d.recetas
     .filter((r) => regla[2](r, d.notas.get(r.id)))
-    .filter((r) => filtro === 'desayunos' || !((r.momentos || []).length === 1 && r.momentos[0] === 'desayuno'))
+    .filter((r) => {
+      const m = r.momentos || [];
+      const suyo = m.length === 1 ? SOLO_EN_SU_FILTRO[m[0]] : null;
+      return !suyo || filtro === suyo;
+    })
     .filter((r) => !q || normalizar(r.titulo).includes(q) || (r.receta_ingredientes || []).some((ri) => normalizar(ri.texto_original).includes(q)))
     .sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'));
 
@@ -147,7 +158,7 @@ export default function Recetas() {
         ) : null}
 
         <div className="filtros" role="group" aria-label="Filtrar recetas">
-          {FILTROS.filter((f) => f[0] !== 'desayunos' || hayDesayunos).map(([id, texto]) => (
+          {FILTROS.filter((f) => (f[0] !== 'desayunos' || hayDesayunos) && (f[0] !== 'postres' || hayPostres)).map(([id, texto]) => (
             <button
               key={id}
               type="button"

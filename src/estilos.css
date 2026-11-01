@@ -26,6 +26,8 @@
   --estrella-borde: #B7791F;
   --especial-fondo: #FCEBD2;
   --especial: #8A4B0F;
+  --postre-fondo: #F8E6EC;
+  --postre: #8C2F52;
   --display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
   --ui: 'Manrope Variable', Manrope, ui-sans-serif, system-ui, sans-serif;
   --arriba: env(safe-area-inset-top, 0px);
@@ -622,3 +624,32 @@ button.celda:disabled { cursor: default; opacity: 0.45; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Postre de la semana ---------- */
+.fila-comida.postre .fila-enlace { background: var(--postre-fondo); }
+.fila-comida.postre .momento, .postre-semana .momento { color: var(--postre); }
+.queda-postre {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: 18px;
+  background: var(--postre-fondo); color: var(--postre); text-decoration: none;
+  font-size: 14px; line-height: 1.35; font-weight: 600;
+}
+.queda-textos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.queda-textos b { color: var(--tinta); }
+.queda-textos small { font-size: 12px; font-weight: 600; }
+.postre-semana {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px 10px 10px; border-radius: 20px;
+  background: var(--postre-fondo); color: var(--tinta); text-decoration: none;
+}
+.postre-semana > .ic { color: var(--postre); }
+.postre-semana.vacio { justify-content: space-between; padding: 12px 16px; background: transparent; border: 1.5px dashed var(--discontinua); color: var(--gris); font-weight: 600; }
+.postre-semana.vacio strong { color: var(--tinta); }
+button.postre-semana { width: 100%; font: inherit; text-align: left; cursor: pointer; }
+button.postre-semana:disabled { opacity: 0.6; cursor: default; }
+button.postre-semana > .ic { color: var(--postre); }
+.postre-textos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pildora.postre { background: var(--postre-fondo); color: var(--postre); font-weight: 700; }
+.pildora.postre.sin-revisar { background: var(--superficie); color: var(--gris); }
+.dia-postre { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--acento); }
+.dia-postre .selector { flex: 1; min-width: 0; }

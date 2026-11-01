@@ -11,6 +11,7 @@ import { descongelarPara } from '../logic/lista.js';
 import { siguienteInicio } from '../logic/generar.js';
 import { formatoMedia, yaComido } from '../logic/valoraciones.js';
 import { AvisoValorar } from '../ui/Notas.jsx';
+import { DIAS_POSTRE, textoAzucar, postreQueQueda, esPostre, nivelAzucar } from '../logic/postres.js';
 
 // Se recuerda qué semana y qué día estabais mirando al volver de un plato
 const memoria = { menuId: null, dia: null, mover: null };
@@ -31,7 +32,7 @@ function leerVista() {
 // Toda la semana de un vistazo: una fila por día y una columna por comida.
 // En modo «mover», se toca un plato y después el hueco al que se lleva (si hay otro, se intercambian).
 function Tablero({ d, dias, comidasMenu, hoy, alElegirDia, moviendo, elegida, alTocar, ocupado }) {
-  const tipos = [...new Set(comidasMenu.map((c) => c.tipo))].sort((a, b) => TIPOS_ORDEN[a] - TIPOS_ORDEN[b]);
+  const tipos = [...new Set(comidasMenu.filter((c) => c.tipo !== 'postre').map((c) => c.tipo))].sort((a, b) => TIPOS_ORDEN[a] - TIPOS_ORDEN[b]);
   if (!tipos.length) return <div className="vacio-suave">Esta semana no tiene platos.</div>;
   const origen = elegida ? comidasMenu.find((c) => c.id === elegida) : null;
   return (
@@ -185,7 +186,15 @@ function HuecoVacio({ comida }) {
       <span>
         <span className="momento">{NOMBRE_TIPO[comida.tipo]}</span>
         <br />
-        <strong>Sin plato</strong> · no cocináis
+        {comida.tipo === 'postre' ? (
+          <>
+            <strong>Sin postre</strong> esta semana
+          </>
+        ) : (
+          <>
+            <strong>Sin plato</strong> · no cocináis
+          </>
+        )}
       </span>
       <span className="boton-texto">Elegir</span>
     </a>
@@ -255,6 +264,101 @@ function FilaComida({ comida, receta }) {
         <Icono n="cambiar" />
       </a>
     </article>
+  );
+}
+
+// El postre del día en que se hace: una tanda para los días siguientes
+function FilaPostre({ comida, receta }) {
+  const d = useDatos();
+  if (!receta) return <HuecoVacio comida={comida} />;
+  return (
+    <article className="fila-comida postre">
+      <a className="fila-enlace" href={`#/plato/${comida.id}`}>
+        <Portada receta={receta} forma="fila" />
+        <span className="fila-textos">
+          <span className="momento">Postre de la semana · {origen(receta, d.notas.has(receta.id))}</span>
+          <span className="fila-titulo">{receta.titulo}</span>
+          <span className="meta">{[`Tanda para ${DIAS_POSTRE} días`, textoAzucar(receta), textoMedia(d, receta)].filter(Boolean).join(' · ')}</span>
+          <Conflictos receta={receta} />
+        </span>
+      </a>
+      <a className="boton-flotante" href={`#/cambiar/${comida.id}`} aria-label="Cambiar el postre">
+        <Icono n="cambiar" />
+      </a>
+    </article>
+  );
+}
+
+// Los días después: queda postre de la tanda
+function QuedaPostre({ queda, dia }) {
+  const ultimo = queda.hasta === dia;
+  return (
+    <a className="queda-postre" href={`#/plato/${queda.comida.id}`}>
+      <Icono n="postre" t={20} />
+      <span className="queda-textos">
+        <span>
+          Queda postre: <b>{queda.receta.titulo}</b>
+        </span>
+        <small>{ultimo ? 'Hoy se acaba la tanda' : `Hay hasta el ${nombreDia(queda.hasta)}`}</small>
+      </span>
+      <Icono n="derecha" t={16} />
+    </a>
+  );
+}
+
+// En la semana entera: el postre va debajo del tablero (es uno para toda la semana)
+function PostreSemana({ d, comida }) {
+  const r = comida.receta_id ? d.recetasMap.get(comida.receta_id) : null;
+  const cuando = `Postre · se hace el ${nombreDia(comida.fecha)}`;
+  if (!r) {
+    return (
+      <a className="postre-semana vacio" href={`#/cambiar/${comida.id}`}>
+        <span className="postre-textos">
+          <span className="momento">{cuando}</span>
+          <span>
+            <strong>Sin postre</strong> esta semana
+          </span>
+        </span>
+        <span className="boton-texto">Elegir</span>
+      </a>
+    );
+  }
+  return (
+    <a className="postre-semana" href={`#/plato/${comida.id}`}>
+      <Portada receta={r} forma="mini" />
+      <span className="postre-textos">
+        <span className="momento">{cuando}</span>
+        <span className="fila-titulo">{r.titulo}</span>
+        <span className="meta">{[`Tanda para ${DIAS_POSTRE} días`, textoAzucar(r)].filter(Boolean).join(' · ')}</span>
+      </span>
+      <Icono n="derecha" t={18} />
+    </a>
+  );
+}
+
+// Semana preparada sin postre (de antes de que existiera, o con el día en «Ninguno»): se puede añadir
+function AnadirPostre({ d, menu, fecha }) {
+  const [trabajando, setTrabajando] = useState(false);
+  return (
+    <button
+      type="button"
+      className="postre-semana vacio"
+      disabled={trabajando || !d.enLinea}
+      onClick={async () => {
+        setTrabajando(true);
+        const ok = await d.acciones.anadirPostre(menu);
+        setTrabajando(false);
+        if (ok) d.avisar('Postre añadido. La lista ya está al día.');
+      }}
+    >
+      <span className="postre-textos">
+        <span className="momento">Postre · el {nombreDia(fecha)}</span>
+        <span>
+          <strong>{trabajando ? 'Añadiendo…' : 'Añadir el postre'}</strong> de esta semana
+        </span>
+      </span>
+      <Icono n="mas" t={20} />
+    </button>
   );
 }
 
@@ -387,9 +491,17 @@ export default function Semana({ diaForzado, menuForzado }) {
 
   const comidasMenu = menu ? d.comidas.filter((c) => c.menu_id === menu.id) : [];
   const delDia = comidasMenu.filter((c) => c.fecha === diaVisto).sort((a, b) => TIPOS_ORDEN[a.tipo] - TIPOS_ORDEN[b.tipo]);
-  const principal = delDia.find((c) => c.tipo === 'comida') || delDia.find((c) => c.tipo !== 'desayuno') || null;
+  const principal = delDia.find((c) => c.tipo === 'comida') || delDia.find((c) => c.tipo !== 'desayuno' && c.tipo !== 'postre') || null;
+  const postreDelDia = delDia.find((c) => c.tipo === 'postre') || null;
+  const postreSemana = comidasMenu.find((c) => c.tipo === 'postre') || null;
+  const queda = diaVisto && !postreDelDia ? postreQueQueda({ comidas: d.comidas, recetasMap: d.recetasMap, fecha: diaVisto }) : null;
+  // Semana sin hueco de postre (solo de mañana en adelante y si hay postres revisados)
+  const fechaSinPostre =
+    menu && !postreSemana && d.recetas.some((r) => esPostre(r) && nivelAzucar(r)) ? d.acciones.fechaPostreDe(menu) : null;
+  const ofrecerPostre = fechaSinPostre && fechaSinPostre > hoy ? fechaSinPostre : null;
 
-  const recetasSemana = comidasMenu.filter((c) => c.tipo !== 'desayuno').map((c) => d.recetasMap.get(c.receta_id));
+  // El postre no cuenta para las reglas de la semana
+  const recetasSemana = comidasMenu.filter((c) => c.tipo !== 'desayuno' && c.tipo !== 'postre').map((c) => d.recetasMap.get(c.receta_id));
   const sinPescado = d.restricciones.some((r) => r.tipo === 'grupo' && r.valor === 'pescado' && esBloqueante(r));
   const chips = menu ? chipsSemana(contarSemana(recetasSemana), d.hogar?.reglas, sinPescado) : [];
 
@@ -532,6 +644,8 @@ export default function Semana({ diaForzado, menuForzado }) {
                 cambiarVista('dia');
               }}
             />
+            {postreSemana && !moviendo ? <PostreSemana d={d} comida={postreSemana} /> : null}
+            {ofrecerPostre && !moviendo ? <AnadirPostre d={d} menu={menu} fecha={ofrecerPostre} /> : null}
             <div className="chips" aria-label="Cómo va la semana">
               {chips.map((c) => (
                 <span key={c.texto} className={`chip-b ${c.estado}`}>
@@ -555,10 +669,13 @@ export default function Semana({ diaForzado, menuForzado }) {
               ))}
             {principal ? <TarjetaGrande comida={principal} receta={d.recetasMap.get(principal.receta_id)} /> : null}
             {delDia
-              .filter((c) => c !== principal && c.tipo !== 'desayuno')
+              .filter((c) => c !== principal && c.tipo !== 'desayuno' && c.tipo !== 'postre')
               .map((c) => (
                 <FilaComida key={c.id} comida={c} receta={d.recetasMap.get(c.receta_id)} />
               ))}
+            {postreDelDia ? <FilaPostre comida={postreDelDia} receta={d.recetasMap.get(postreDelDia.receta_id)} /> : null}
+            {queda ? <QuedaPostre queda={queda} dia={diaVisto} /> : null}
+            {ofrecerPostre === diaVisto ? <AnadirPostre d={d} menu={menu} fecha={ofrecerPostre} /> : null}
             {!delDia.length ? <div className="vacio-suave">Este día no hay nada planificado.</div> : null}
             {nombresDescongelar.length ? (
               <div className="nota-dia">

@@ -256,7 +256,8 @@ function contiene(t, palabras) {
   return palabras.some((p) => s.includes(` ${p}`));
 }
 
-const NO_ES_COMIDA = ['postre', 'tarta', 'bizcocho', 'galleta', 'flan ', 'natillas', 'helado', 'mousse', 'brownie', 'magdalena', 'muffin', 'cupcake', 'tiramisu', 'pudin', 'pudding', 'arroz con leche', 'torrija', 'rosquilla', 'churro', 'bollo', 'cheesecake', 'mermelada', 'compota', 'batido', 'zumo', 'coctel', 'sangria', 'licor', 'bebida'];
+const POSTRE = ['postre', 'tarta', 'bizcocho', 'galleta', 'flan ', 'natillas', 'helado', 'mousse', 'brownie', 'magdalena', 'muffin', 'cupcake', 'tiramisu', 'pudin', 'pudding', 'arroz con leche', 'torrija', 'rosquilla', 'churro', 'bollo', 'cheesecake', 'compota', 'crumble', 'pannacotta', 'panna cotta'];
+const NO_ES_COMIDA = ['mermelada', 'batido', 'zumo', 'coctel', 'sangria', 'licor', 'bebida'];
 const DESAYUNO = ['desayuno', 'tostada', 'porridge', 'gachas', 'tortitas', 'pancake', 'granola', 'overnight', 'smoothie', 'muesli'];
 const LEGUMBRE = ['lenteja', 'garbanzo', 'alubia', 'judion', 'fabada', 'fabes', 'frijol', 'hummus', 'falafel', 'dal ', 'habas', 'potaje', 'puchero', 'olla gitana'];
 const HUEVO = ['tortilla de', 'tortilla espanola', 'revuelto', 'frittata', 'quiche', 'shakshuka', 'huevo', 'huevos'];
@@ -294,8 +295,10 @@ export function recetaDesdeWeb(datos, { hogarId, url, ingredientes: catalogo }) 
 
   const titulo = datos.titulo.slice(0, 120);
   const pista = `${titulo} ${datos.categoria || ''}`;
+  // Los postres van al hueco del postre (sin etiqueta de azúcar no salen solos); salsas y bebidas, a ninguno
   let momentos = ['comida', 'cena'];
-  if (contiene(pista, NO_ES_COMIDA) || /^(salsa|pan|masa|alino|vinagreta)\b/i.test(normalizar(titulo))) momentos = ['postre'];
+  if (contiene(pista, NO_ES_COMIDA) || /^(salsa|pan|masa|alino|vinagreta)\b/i.test(normalizar(titulo))) momentos = [];
+  else if (contiene(pista, POSTRE)) momentos = ['postre'];
   else if (contiene(pista, DESAYUNO)) momentos = ['desayuno'];
 
   const grupos = (fila) => (fila.ingrediente_id ? indice.porId.get(fila.ingrediente_id)?.grupos || [] : []);

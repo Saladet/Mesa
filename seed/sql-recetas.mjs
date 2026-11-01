@@ -1,5 +1,5 @@
 // SQL para añadir un conjunto de recetas (y los ingredientes nuevos del catálogo).
-// Uso: node seed/sql-recetas.mjs <importadas|especiales> <hogar_id> <carpeta_salida>
+// Uso: node seed/sql-recetas.mjs <importadas|especiales|postres> <hogar_id> <carpeta_salida>
 // Escribe <conjunto>-1.sql (ingredientes) y <conjunto>-2.sql (recetas e ingredientes de cada receta).
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
@@ -7,14 +7,20 @@ import { join } from 'node:path';
 import { INGREDIENTES } from './datos.js';
 import * as importadas from './importadas.js';
 import * as especiales from './especiales.js';
+import * as postres from './postres.js';
 
 const [conjunto, hogarId, salida] = process.argv.slice(2);
 const CONJUNTOS = {
   importadas: { nuevos: importadas.INGREDIENTES_NUEVOS, recetas: importadas.IMPORTADAS },
   especiales: { nuevos: especiales.INGREDIENTES_NUEVOS, recetas: especiales.ESPECIALES.map((r) => ({ ...r, especial: true })) },
+  // Postres: tanda de 8 raciones, solo salen en el hueco del postre; la etiqueta dice cuánto azúcar llevan
+  postres: {
+    nuevos: postres.INGREDIENTES_NUEVOS,
+    recetas: postres.POSTRES.map((r) => ({ ...r, momentos: ['postre'], proteina: null, raciones: 8, etiquetas: [r.azucar] })),
+  },
 };
 if (!CONJUNTOS[conjunto] || !hogarId || !salida) {
-  console.error('Uso: node seed/sql-recetas.mjs <importadas|especiales> <hogar_id> <carpeta_salida>');
+  console.error('Uso: node seed/sql-recetas.mjs <importadas|especiales|postres> <hogar_id> <carpeta_salida>');
   process.exit(1);
 }
 const { nuevos: INGREDIENTES_NUEVOS, recetas: RECETAS } = CONJUNTOS[conjunto];
@@ -23,7 +29,9 @@ const arr = (a) => (a && a.length ? `array[${a.map(q).join(',')}]::text[]` : `'{
 const json = (o) => `${q(JSON.stringify(o))}::jsonb`;
 const num = (n) => (n == null ? 'null' : String(n));
 
-const catalogo = new Map([...INGREDIENTES, ...importadas.INGREDIENTES_NUEVOS, ...especiales.INGREDIENTES_NUEVOS].map(([id, nombre]) => [id, nombre]));
+const catalogo = new Map(
+  [...INGREDIENTES, ...importadas.INGREDIENTES_NUEVOS, ...especiales.INGREDIENTES_NUEVOS, ...postres.INGREDIENTES_NUEVOS].map(([id, nombre]) => [id, nombre]),
+);
 const errores = [];
 const slugs = new Set();
 for (const r of RECETAS) {
@@ -40,6 +48,14 @@ for (const r of RECETAS) {
   for (const [id] of r.ing) if (!usados.has(id)) errores.push(`${r.slug}: ${id} no aparece en ningún paso`);
   if (!r.foto || !r.url) errores.push(`${r.slug}: falta foto o enlace`);
   if (r.especial && !(r.antes || []).length) errores.push(`${r.slug}: un especial necesita «antes de empezar»`);
+  if (r.azucar) {
+    // Azúcar añadido de la tanda: el azúcar tal cual y la miel o el sirope (~1,1 g de azúcar por ml)
+    const cant = (id) => r.ing.filter((i) => i[0] === id).reduce((n, i) => n + (i[1] || 0), 0);
+    const anadido = cant('azucar') + cant('miel') * 1.1;
+    if (!['sin-azucar', 'poco-azucar'].includes(r.azucar)) errores.push(`${r.slug}: azúcar desconocido ${r.azucar}`);
+    if (r.azucar === 'sin-azucar' && anadido > 0) errores.push(`${r.slug}: dice sin azúcar pero lleva ${anadido} g`);
+    if (r.azucar === 'poco-azucar' && (anadido <= 0 || anadido > 64)) errores.push(`${r.slug}: poco azúcar es de 1 a 64 g por tanda y lleva ${anadido} g`);
+  }
 }
 if (errores.length) {
   console.error(errores.join('\n'));
@@ -54,12 +70,12 @@ const p1 =
 const recetas = RECETAS.map((r) => ({ ...r, id: randomUUID() }));
 const mapa = `(values ${recetas.map((r) => `(${q(r.slug)},${q(r.id)}::uuid)`).join(',')}) as r(slug, id)`;
 const p2 =
-  'insert into public.recetas (id, hogar_id, titulo, origen, url_origen, foto_url, tiempo_min, raciones, pasos, paleta, momentos, proteina, capricho, especial, antes) values\n' +
+  'insert into public.recetas (id, hogar_id, titulo, origen, url_origen, foto_url, tiempo_min, raciones, pasos, paleta, momentos, proteina, capricho, especial, antes, etiquetas) values\n' +
   recetas
     .map(
       (r) =>
-        `(${q(r.id)},${q(hogarId)},${q(r.titulo)},'importada',${q(r.url)},${q(r.foto)},${num(r.tiempo)},2,` +
-        `${json(r.pasos.map(([texto, min, ingredientes]) => ({ texto, min: min || null, ingredientes })))},${json(r.paleta)},${arr(r.momentos)},${q(r.proteina)},${!!r.capricho},${!!r.especial},${arr(r.antes)})`,
+        `(${q(r.id)},${q(hogarId)},${q(r.titulo)},'importada',${q(r.url)},${q(r.foto)},${num(r.tiempo)},${num(r.raciones || 2)},` +
+        `${json(r.pasos.map(([texto, min, ingredientes]) => ({ texto, min: min || null, ingredientes })))},${json(r.paleta)},${arr(r.momentos)},${q(r.proteina)},${!!r.capricho},${!!r.especial},${arr(r.antes)},${arr(r.etiquetas)})`,
     )
     .join(',\n') +
   ';\n\ninsert into public.receta_ingredientes (receta_id, ingrediente_id, texto_original, cantidad, unidad, orden)\n' +

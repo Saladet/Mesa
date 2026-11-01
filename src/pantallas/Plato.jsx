@@ -4,11 +4,12 @@ import Icono from '../ui/Icono.jsx';
 import Portada from '../ui/Portada.jsx';
 import { Avatares } from '../ui/Avatar.jsx';
 import { tiempo, veces, dominio, minuscula, Resaltado } from '../ui/textos.jsx';
-import { etiquetaDiaMin, hoyISO } from '../logic/fechas.js';
+import { etiquetaDiaMin, etiquetaDia, hoyISO, nombreDia } from '../logic/fechas.js';
 import { ValorarComida, NotasAnteriores } from '../ui/Notas.jsx';
 import { yaComido } from '../logic/valoraciones.js';
 import { Media } from '../ui/Estrellas.jsx';
-import { NOMBRE_TIPO } from '../logic/semanas.js';
+import { NOMBRE_TIPO, diasDelMenu } from '../logic/semanas.js';
+import { esPostre, textoAzucar, factorRaciones, racionesPara, textoRaciones } from '../logic/postres.js';
 import { conflictosReceta, esBloqueante, nombreRestriccion, PROTEINAS } from '../logic/reglas.js';
 import { formatoCantidad, escalar } from '../logic/cantidades.js';
 import { mensajeError } from '../supabase.js';
@@ -34,6 +35,40 @@ export function NoEncontrado({ texto = 'Este plato ya no está en el menú.' }) 
   );
 }
 
+// El postre de esta semana se puede hacer otro día (en el tablero no aparece: es uno para toda la semana)
+function DiaPostre({ comida }) {
+  const d = useDatos();
+  const [guardando, setGuardando] = useState(false);
+  const hoy = hoyISO();
+  const menu = d.menus.find((m) => m.id === comida.menu_id);
+  const dias = menu ? diasDelMenu(menu, d.comidas).filter((f) => f >= hoy) : [];
+  if (dias.length < 2 || !dias.includes(comida.fecha)) return null;
+  return (
+    <label className="dia-postre">
+      <Icono n="semana" t={18} />
+      <span>Lo hacéis el</span>
+      <select
+        className="selector"
+        value={comida.fecha}
+        disabled={guardando || !d.enLinea}
+        onChange={async (e) => {
+          const fecha = e.target.value;
+          setGuardando(true);
+          const ok = await d.acciones.cambiarDiaPostre(comida, fecha);
+          setGuardando(false);
+          if (ok) d.avisar(`El postre pasa al ${nombreDia(fecha)}. La lista ya está al día.`);
+        }}
+      >
+        {dias.map((f) => (
+          <option key={f} value={f}>
+            {etiquetaDia(f)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function PantallaPlato({ comidaId, recetaId }) {
   const d = useDatos();
   const entrada = useRef(null);
@@ -51,7 +86,9 @@ export default function PantallaPlato({ comidaId, recetaId }) {
 
   if (!receta) return <NoEncontrado texto={comidaId ? 'Este plato ya no está en el menú.' : 'No encuentro esta receta.'} />;
 
-  const factor = d.comensales / (receta.raciones || 2);
+  const factor = factorRaciones(receta, d.comensales);
+  const postre = esPostre(receta);
+  const azucar = postre ? textoAzucar(receta) : null;
   const ingredientes = receta.receta_ingredientes || [];
   const visibles = todos ? ingredientes : ingredientes.slice(0, 5);
   const conflictos = conflictosReceta(receta, d.restricciones, d.ingMap);
@@ -131,7 +168,13 @@ export default function PantallaPlato({ comidaId, recetaId }) {
               <span>{tiempo(receta.tiempo_min)}</span>
             </span>
           ) : null}
-          <span className="pildora">Para {d.comensales}</span>
+          <span className="pildora">{textoRaciones(receta, d.comensales)}</span>
+          {postre ? (
+            <span className={`pildora postre${azucar ? '' : ' sin-revisar'}`}>
+              <Icono n="postre" t={14} />
+              {azucar || 'Azúcar sin revisar'}
+            </span>
+          ) : null}
           {receta.proteina && PROTEINAS[receta.proteina] ? <span className="pildora">{PROTEINAS[receta.proteina]}</span> : null}
           {receta.capricho ? <span className="pildora lima">Capricho</span> : null}
           {receta.especial ? (
@@ -193,7 +236,8 @@ export default function PantallaPlato({ comidaId, recetaId }) {
           </section>
         ) : null}
 
-        {comida && comida.fecha >= hoy && d.enLinea ? (
+        {comida && comida.tipo === 'postre' && comida.fecha >= hoy ? <DiaPostre comida={comida} /> : null}
+        {comida && comida.tipo !== 'postre' && comida.fecha >= hoy && d.enLinea ? (
           <button
             type="button"
             className="boton-texto mover-dia"
@@ -211,7 +255,9 @@ export default function PantallaPlato({ comidaId, recetaId }) {
         <NotasAnteriores receta={receta} excluir={fechaValorar} />
 
         <section>
-          <h2 className="subtitulo">Ingredientes · para {d.comensales}</h2>
+          <h2 className="subtitulo">
+            Ingredientes · {postre ? `tanda de ${racionesPara(receta, d.comensales)} raciones` : `para ${d.comensales}`}
+          </h2>
           {visibles.map((ri) => (
             <div key={ri.id} className="ingrediente">
               <span>{ri.texto_original}</span>

@@ -2,8 +2,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, esErrorDeRed, mensajeError } from './supabase.js';
 import { construirLista, planActualizacion, claveManual } from './logic/lista.js';
-import { generarSemana, siguienteInicio } from './logic/generar.js';
-import { hoyISO, capital } from './logic/fechas.js';
+import { generarSemana, siguienteInicio, elegirPostre } from './logic/generar.js';
+import { hoyISO, capital, diaSemana } from './logic/fechas.js';
 import { normalizar } from './logic/reglas.js';
 import { ordenarMenus, finDelMenu, diasDelMenu } from './logic/semanas.js';
 import { resumenNotas, mediasDe, ponerValoracion, quitarValoracion, buscarValoracion } from './logic/valoraciones.js';
@@ -49,7 +49,12 @@ function especialDe(hogar) {
   return hogar?.dia_especial != null ? { dia: hogar.dia_especial, tipo: hogar.tipo_especial || 'comida' } : null;
 }
 
-// receta_id -> última fecha en la que salió en el menú (para que los especiales roten)
+// Día del postre de la semana para el generador (null: sin postre)
+function postreDe(hogar) {
+  return hogar?.dia_postre != null ? { dia: hogar.dia_postre } : null;
+}
+
+// receta_id -> última fecha en la que salió en el menú (para que los especiales y los postres roten)
 function ultimoUsoDe(comidas) {
   const m = new Map();
   for (const c of comidas) if (c.receta_id && (!m.has(c.receta_id) || c.fecha > m.get(c.receta_id))) m.set(c.receta_id, c.fecha);
@@ -437,6 +442,65 @@ export function ProveedorDatos({ children }) {
     return true;
   }
 
+  // Día del postre en una semana que se preparó sin él (antes de que existiera, o con el postre en «Ninguno»)
+  function fechaPostreDe(menu) {
+    const d = ref.current;
+    if (!menu || d.hogar?.dia_postre == null) return null;
+    return diasDelMenu(menu, d.comidas).find((f) => diaSemana(f) === d.hogar.dia_postre) || null;
+  }
+
+  async function anadirPostre(menu) {
+    const d = ref.current;
+    const fecha = fechaPostreDe(menu);
+    if (!fecha) return false;
+    const x = elegirPostre({
+      recetas: d.recetas,
+      ingMap: mapasDe(d).ingMap,
+      restricciones: d.restricciones,
+      medias: mediasDe(resumenNotas(d.valoraciones)),
+      ultimoUso: ultimoUsoDe(d.comidas.filter((c) => c.menu_id !== menu.id)),
+      inicio: menu.semana_inicio,
+      semilla: Date.now(),
+    });
+    const r = await supabase.from('menu_comidas').insert({ menu_id: menu.id, fecha, tipo: 'postre', receta_id: x?.id ?? null }).select().single();
+    if (r.error) {
+      if (r.error.code === '23505') {
+        await cargar();
+        return true;
+      }
+      avisar(mensajeError(r.error), 'error');
+      return false;
+    }
+    setDatos((y) => (y.comidas.some((c) => c.id === r.data.id) ? y : { ...y, comidas: [...y.comidas, r.data] }));
+    try {
+      await regenerarLista(menu);
+    } catch (e) {
+      console.error(e);
+      avisar('Postre añadido, pero la lista no se ha podido actualizar. Abre la app otra vez con conexión.', 'error');
+    }
+    return true;
+  }
+
+  // El postre de una semana se hace otro día (solo hay uno por semana, así que no choca con nada)
+  async function cambiarDiaPostre(comida, fecha) {
+    if (!comida || comida.tipo !== 'postre' || comida.fecha === fecha) return false;
+    actualizarLocal('comidas', comida.id, { fecha });
+    const r = await supabase.from('menu_comidas').update({ fecha }).eq('id', comida.id);
+    if (r.error) {
+      avisar(mensajeError(r.error), 'error');
+      cargar();
+      return false;
+    }
+    const menu = ref.current.menus.find((m) => m.id === comida.menu_id);
+    try {
+      if (menu) await regenerarLista(menu);
+    } catch (e) {
+      console.error(e);
+      avisar('Cambiado de día, pero la lista no se ha podido actualizar. Abre la app otra vez con conexión.', 'error');
+    }
+    return true;
+  }
+
   async function prepararSemana() {
     const d = ref.current;
     const hoy = hoyISO();
@@ -456,6 +520,7 @@ export function ProveedorDatos({ children }) {
       recientes,
       medias: mediasDe(resumenNotas(d.valoraciones)),
       especial: especialDe(d.hogar),
+      postre: postreDe(d.hogar),
       ultimoUso: ultimoUsoDe(d.comidas),
       semilla: Date.now(),
     });
@@ -497,6 +562,7 @@ export function ProveedorDatos({ children }) {
       recientes,
       medias: mediasDe(resumenNotas(d.valoraciones)),
       especial: especialDe(d.hogar),
+      postre: postreDe(d.hogar),
       ultimoUso: ultimoUsoDe(d.comidas.filter((c) => c.menu_id !== menu.id)),
       semilla: Date.now(),
     }).filter((h) => dias.has(h.fecha));
@@ -743,6 +809,9 @@ export function ProveedorDatos({ children }) {
       quitarDeLista,
       cambiarComida,
       moverComida,
+      cambiarDiaPostre,
+      anadirPostre,
+      fechaPostreDe,
       prepararSemana,
       rehacerSemana,
       regenerarLista,

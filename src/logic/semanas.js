@@ -38,5 +38,5 @@ export function menuDeCompra(menus, comidas, hoy) {
   return orden[orden.length - 1] || null;
 }
 
-export const TIPOS_ORDEN = { desayuno: 0, comida: 1, cena: 2 };
-export const NOMBRE_TIPO = { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena' };
+export const TIPOS_ORDEN = { desayuno: 0, comida: 1, cena: 2, postre: 3 };
+export const NOMBRE_TIPO = { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena', postre: 'Postre' };

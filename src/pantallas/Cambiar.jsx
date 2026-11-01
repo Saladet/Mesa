@@ -8,6 +8,7 @@ import { NOMBRE_TIPO } from '../logic/semanas.js';
 import { alternativas } from '../logic/generar.js';
 import { formatoMedia } from '../logic/valoraciones.js';
 import { volver } from '../ruta.js';
+import { esPostre, textoAzucar } from '../logic/postres.js';
 
 const MOTIVOS = [
   ['apetece', 'No me apetece'],
@@ -116,7 +117,10 @@ export default function Cambiar({ comidaId }) {
     }
   }
 
-  const tipoTexto = NOMBRE_TIPO[comida.tipo].toLowerCase();
+  const postre = comida.tipo === 'postre';
+  const tipoTexto = `${postre || comida.tipo === 'desayuno' ? 'el' : 'la'} ${NOMBRE_TIPO[comida.tipo].toLowerCase()}`;
+  // «Otra proteína» no tiene sentido en un postre
+  const motivosVisibles = postre ? MOTIVOS.filter(([id]) => id !== 'proteina') : MOTIVOS;
 
   return (
     <>
@@ -130,7 +134,7 @@ export default function Cambiar({ comidaId }) {
               {actual ? ` · ${minuscula(actual.titulo)}` : ' · sin plato'}
             </span>
             <h1 id="titulo-cambiar" className="hoja-titulo">
-              {actual ? `Cambiar la ${tipoTexto}` : `Elegir la ${tipoTexto}`}
+              {actual ? `Cambiar ${tipoTexto}` : `Elegir ${tipoTexto}`}
             </h1>
           </div>
           <button className="boton-cerrar" type="button" onClick={cerrar} aria-label="Cerrar">
@@ -142,7 +146,7 @@ export default function Cambiar({ comidaId }) {
           <fieldset className="grupo">
             <legend>¿Qué no os convence?</legend>
             <div className="chips-sel">
-              {MOTIVOS.map(([id, texto]) => (
+              {motivosVisibles.map(([id, texto]) => (
                 <label key={id} className="chip">
                   <input type="checkbox" checked={motivos.has(id)} onChange={() => alternar(id)} />
                   <span>{texto}</span>
@@ -165,6 +169,7 @@ export default function Cambiar({ comidaId }) {
                     <span className="meta">
                       {[
                         receta.especial ? 'Especial' : null,
+                        esPostre(receta) ? textoAzucar(receta) : null,
                         tiempo(receta.tiempo_min),
                         origen(receta, d.notas.has(receta.id)),
                         d.medias.has(receta.id) ? `★ ${formatoMedia(d.medias.get(receta.id))}` : null,
@@ -179,7 +184,9 @@ export default function Cambiar({ comidaId }) {
             </div>
           ) : (
             <div className="vacio-suave">
-              No hay más platos que encajen con estas condiciones. Quita alguna o pídele a Claude recetas nuevas para el recetario.
+              {postre
+                ? 'No hay más postres que encajen con estas condiciones. Quita alguna o pídele a Claude postres nuevos para el recetario.'
+                : 'No hay más platos que encajen con estas condiciones. Quita alguna o pídele a Claude recetas nuevas para el recetario.'}
             </div>
           )}
         </fieldset>
@@ -196,7 +203,7 @@ export default function Cambiar({ comidaId }) {
         </div>
         {actual ? (
           <button className="boton-texto gris" type="button" disabled={guardando} onClick={() => aplicar(null)} style={{ alignSelf: 'center' }}>
-            Ese día no cocináis: dejar el hueco libre
+            {postre ? 'Esta semana sin postre: dejar el hueco libre' : 'Ese día no cocináis: dejar el hueco libre'}
           </button>
         ) : null}
       </section>
